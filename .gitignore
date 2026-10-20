@@ -5,3 +5,6 @@
 .vscode/ipch
 include/secrets.h
 .DS_Store
+.cache/
+compile_commands.json
+.vscode/

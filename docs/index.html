@@ -47,6 +47,9 @@
   .link.ok .dot{background:#3fae5a;box-shadow:0 0 8px #3fae5a}
   .link.wait .dot{background:var(--on);animation:pulse 1.2s infinite}
   @keyframes pulse{50%{opacity:.35}}
+  .seg{display:flex;gap:6px;margin:0 0 10px}
+  .seg button{flex:1;padding:8px 0;font-size:14px;background:var(--bg);border:1px solid var(--line)}
+  .seg button.sel{background:var(--ink);color:var(--card);border-color:var(--ink)}
   ul.journal{list-style:none;padding:0;margin:0;font-size:15px}
   ul.journal li{padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
   ul.journal li:last-child{border-bottom:0}
@@ -98,7 +101,10 @@
   </div>
 
   <div class="card">
-    <div class="row"><h2>Lumière des dernières 24 h</h2><button class="small" id="reload" disabled>Actualiser</button></div>
+    <div class="row"><h2 id="chartTitle">Lumière des dernières 24 h</h2><button class="small" id="reload" disabled>Actualiser</button></div>
+    <div class="seg" id="range">
+      <button data-r="1" class="sel">24 h</button><button data-r="7">7 jours</button><button data-r="30">30 jours</button><button data-r="0">Tout</button>
+    </div>
     <svg id="chart" viewBox="0 0 340 200" aria-label="Courbe de lumière"></svg>
     <div id="chartInfo">Touche la courbe pour lire une valeur.</div>
     <div class="legend">
@@ -112,6 +118,17 @@
   <div class="card">
     <h2>Dernières soirées</h2>
     <ul class="journal" id="journal"><li class="note">Pas encore de données.</li></ul>
+  </div>
+
+  <div class="card">
+    <h2>Historique sur ce téléphone</h2>
+    <dl class="facts" id="hist"><dt>Mesures</dt><dd>aucune</dd></dl>
+    <div class="btns">
+      <button id="sync" disabled>Synchroniser</button>
+      <button id="csv">Exporter (CSV)</button>
+    </div>
+    <div id="syncInfo" class="note" style="margin-top:8px"></div>
+    <p class="note">La carte garde environ 100 jours de mesures (une toutes les 6 minutes) et ce téléphone en garde une copie, complétée à chaque connexion. Rien n'est effacé sur la carte.</p>
   </div>
 
   <div class="card">
@@ -161,7 +178,7 @@
 
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
-const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6);
+const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
 const PHASES = ["attente du jour", "jour", "soirée", "nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -187,6 +204,7 @@ function log(text) {
 function renderLog() { const el = $("log"); if (el) { el.textContent = logLines.join("\n") || "(vide)"; el.scrollTop = el.scrollHeight; } }
 function enable(on) {
   document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on);
+  $("sync").disabled = !on || !ch.log;
   $("fw").disabled = !on || !ch.ota; $("otaGo").disabled = !on || !ch.ota;
 }
 const pad = n => String(n).padStart(2, "0");
@@ -262,6 +280,8 @@ function showInfo(j) {
     return `<li>${dayLabel(a)}, ${hhmm(a)} → ${fin} <span class="note">(lumière ${val})</span></li>`;
   });
   $("journal").innerHTML = items.length ? items.join("") : '<li class="note">Pas encore de soirée depuis le démarrage.</li>';
+  histCache = null;
+  renderHist();
   drawChart();
   if (live) saveCache();
 }
@@ -278,32 +298,84 @@ function parseCurve(dv) {
   return pts;
 }
 
-// Courbe en SVG : 24 h glissantes, lumière de 0 à 4095.
+// Courbe en SVG, lumière de 0 à 4095, sur la période choisie :
+// 24 h à partir de la courbe de la carte, sinon l'historique gardé sur le téléphone.
 const W = 340, H = 200, L = 34, R = 6, T = 8, B = 30;
+let range = 1;   // en jours, 0 = tout
+try { range = +(localStorage.getItem("poulailler-periode") ?? 1); } catch {}
+
+function chartPoints() {
+  const t1 = Date.now();
+  if (range === 1 && curve && curve.length) {
+    return { t0: t1 - 86400000, t1, pts: curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t >= t1 - 86400000) };
+  }
+  let pts = historyPoints();
+  if (range) pts = pts.filter(p => p.t >= t1 - range * 86400000);
+  const t0 = range ? t1 - range * 86400000 : (pts.length ? pts[0].t : t1 - 86400000);
+  // Au-delà de 1500 points, on fait des moyennes : la courbe reste lisible et légère.
+  if (pts.length > 1500) {
+    const k = Math.ceil(pts.length / 1500), out = [];
+    for (let i = 0; i < pts.length; i += k) {
+      const g = pts.slice(i, i + k);
+      out.push({ t: g[0].t, v: Math.round(g.reduce((a, p) => a + p.v, 0) / g.length),
+                 int: g.some(p => p.int), ext: g.some(p => p.ext) });
+    }
+    pts = out;
+  }
+  return { t0, t1, pts };
+}
+
 function drawChart() {
   const svg = $("chart");
   const css = getComputedStyle(document.documentElement);
   const col = n => css.getPropertyValue(n).trim();
-  if (!curve || !curve.length) { svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${col("--muted")}" font-size="12">Pas encore de mesure.</text>`; return; }
-  const t1 = Date.now(), t0 = t1 - 24 * 3600 * 1000;
+  $("chartTitle").textContent = range === 1 ? "Lumière des dernières 24 h" : range ? `Lumière des ${range} derniers jours` : "Lumière, tout l'historique";
+  document.querySelectorAll("#range button").forEach(b => b.classList.toggle("sel", +b.dataset.r === range));
+  const { t0, t1, pts } = chartPoints();
+  if (!pts.length) {
+    const msg = range === 1 ? "Pas encore de mesure." : "Pas encore d'historique : connecte-toi pour synchroniser.";
+    svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${col("--muted")}" font-size="12">${msg}</text>`;
+    return;
+  }
   const X = t => L + (t - t0) / (t1 - t0) * (W - L - R);
   const Y = v => T + (1 - v / 4095) * (H - T - B);
   let g = "";
   for (const v of [0, 1000, 2000, 3000, 4000]) g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${col("--line")}"/><text x="${L-4}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="${col("--muted")}">${v}</text>`;
-  for (let h = 0; h <= 24; h += 6) {
-    const d = new Date(t0 + h * 3600000);
-    const anchor = h === 0 ? "start" : h === 24 ? "end" : "middle";
-    g += `<text x="${X(+d)}" y="${H-10}" text-anchor="${anchor}" font-size="10" fill="${col("--muted")}">${hhmm(d)}</text>`;
+  const days = (t1 - t0) / 86400000;
+  if (days <= 1.5) {
+    for (let h = 0; h <= 24; h += 6) {
+      const d = new Date(t0 + h * 3600000);
+      const anchor = h === 0 ? "start" : h === 24 ? "end" : "middle";
+      g += `<text x="${X(+d)}" y="${H-10}" text-anchor="${anchor}" font-size="10" fill="${col("--muted")}">${hhmm(d)}</text>`;
+    }
+  } else {
+    // Repères à minuit, espacés pour ne pas se chevaucher.
+    const every = Math.max(1, Math.ceil(days / 6));
+    const d = new Date(t0); d.setHours(24, 0, 0, 0);
+    for (let i = 0; +d <= t1; i++, d.setDate(d.getDate() + 1)) {
+      g += `<line x1="${X(+d)}" x2="${X(+d)}" y1="${T}" y2="${H-B}" stroke="${col("--line")}" stroke-width=".5"/>`;
+      if (i % every === 0) g += `<text x="${X(+d)}" y="${H-10}" text-anchor="middle" font-size="10" fill="${col("--muted")}">${d.getDate()}/${d.getMonth() + 1}</text>`;
+    }
   }
-  const pts = curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t >= t0);
-  const step = (curve.length > 1 ? (curve[1].up - curve[0].up) : 360) * 1000;
-  for (const p of pts) if (p.int || p.ext) g += `<rect x="${X(p.t)}" y="${H-B+2}" width="${Math.max(1, X(p.t + step) - X(p.t))}" height="5" fill="${col("--on")}"/>`;
+  // Bande orange : rubans allumés (chaque point couvre jusqu'au suivant, 10 min au plus).
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i]; if (!(p.int || p.ext)) continue;
+    const end = Math.min(i + 1 < pts.length ? pts[i + 1].t : p.t + 360000, p.t + 600000);
+    g += `<rect x="${X(p.t)}" y="${H-B+2}" width="${Math.max(1, X(end) - X(p.t))}" height="5" fill="${col("--on")}"/>`;
+  }
   if (info) {
     g += `<line x1="${L}" x2="${W-R}" y1="${Y(info.cfg.dusk)}" y2="${Y(info.cfg.dusk)}" stroke="${col("--dusk")}" stroke-dasharray="4 3"/>`;
     g += `<line x1="${L}" x2="${W-R}" y1="${Y(info.cfg.day)}" y2="${Y(info.cfg.day)}" stroke="${col("--day")}" stroke-dasharray="4 3"/>`;
   }
-  if (pts.length) g += `<polyline fill="none" stroke="${col("--curve")}" stroke-width="1.8" points="${pts.map(p => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")}"/>`;
-  g += `<line id="cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="${col("--accent")}" visibility="hidden"/>`;
+  // Une coupure de plus de 20 min (carte éteinte) coupe la ligne au lieu de la relier.
+  let seg = [], lines = "";
+  const flushSeg = () => { if (seg.length) lines += `<polyline fill="none" stroke="${col("--curve")}" stroke-width="${days > 8 ? 1.2 : 1.8}" points="${seg.join(" ")}"/>`; seg = []; };
+  pts.forEach((p, i) => {
+    if (i && p.t - pts[i - 1].t > Math.max(1200000, (pts[1].t - pts[0].t) * 3)) flushSeg();
+    seg.push(`${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`);
+  });
+  flushSeg();
+  g += lines + `<line id="cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="${col("--accent")}" visibility="hidden"/>`;
   svg.innerHTML = g;
   const pick = ev => {
     const r = svg.getBoundingClientRect();
@@ -316,6 +388,139 @@ function drawChart() {
   };
   svg.onpointerdown = svg.onpointermove = pick;
   svg.ontouchmove = pick;
+}
+
+// Historique longue durée : copie sur le téléphone du journal de la carte.
+// Mesures brutes de 16 octets, rangées en base64 dans le navigateur, avec le
+// numéro de la prochaine mesure à demander.
+const DATA_KEY = "poulailler-donnees-v1";
+let store = { next: 0, syncedAt: 0 }, raw = new Uint8Array(0), histCache = null;
+function toB64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192)); return btoa(s); }
+function fromB64(b) { const s = atob(b || ""); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+function loadStore() {
+  try {
+    const o = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
+    if (o) { store = { next: o.next || 0, syncedAt: o.syncedAt || 0 }; raw = fromB64(o.data); }
+  } catch (e) { log("ERREUR lecture de l'historique du téléphone : " + errText(e)); }
+}
+function saveStore() {
+  try { localStorage.setItem(DATA_KEY, JSON.stringify({ ...store, data: toB64(raw) })); }
+  catch (e) { log("ERREUR enregistrement de l'historique sur le téléphone : " + errText(e)); }
+}
+function decodeRecords() {
+  const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength), out = [];
+  for (let o = 0; o + 16 <= raw.length; o += 16) {
+    const w = dv.getUint16(o + 10, true);
+    out.push({ epoch: dv.getUint32(o, true), up: dv.getUint32(o + 4, true), boot: dv.getUint16(o + 8, true),
+               v: w & 0x0fff, int: !!(w & 0x1000), ext: !!(w & 0x2000),
+               mv: dv.getUint16(o + 12, true), ma: dv.getInt16(o + 14, true) });
+  }
+  return out;
+}
+// Heure de chaque mesure : l'heure réelle si la carte la connaissait ; sinon on la
+// déduit d'une autre mesure du même démarrage qui, elle, a l'heure.
+function historyPoints() {
+  if (histCache) return histCache;
+  const recs = decodeRecords(), anchor = new Map();
+  for (const r of recs) if (r.epoch && !anchor.has(r.boot)) anchor.set(r.boot, r);
+  const curBoot = info ? (info.boots & 0xffff) : -1;
+  const pts = [];
+  for (const r of recs) {
+    const a = anchor.get(r.boot);
+    const t = r.epoch ? r.epoch * 1000 : a ? (a.epoch + (r.up - a.up)) * 1000 : (r.boot === curBoot && state ? +toDate(r.up) : 0);
+    if (t) pts.push({ ...r, t });
+  }
+  pts.sort((x, y) => x.t - y.t);
+  return (histCache = pts);
+}
+function renderHist() {
+  const pts = historyPoints(), total = raw.length / 16;
+  const f = [["Mesures gardées", total ? `${total}` : "aucune"]];
+  if (pts.length) {
+    const a = new Date(pts[0].t), b = new Date(pts[pts.length - 1].t);
+    f.push(["Période", `du ${a.toLocaleDateString("fr-FR")} ${hhmm(a)} au ${b.toLocaleDateString("fr-FR")} ${hhmm(b)}`]);
+  }
+  if (total > pts.length) f.push(["Sans heure connue", `${total - pts.length} (ignorées sur la courbe)`]);
+  if (store.syncedAt) { const d = new Date(store.syncedAt); f.push(["Dernière synchro", `${dayLabel(d)} à ${hhmm(d)}`]); }
+  if (info && info.lg) f.push(["Sur la carte", info.lg[2] ? `n° ${info.lg[0]} à ${info.lg[1] - 1}` : "stockage indisponible"]);
+  $("hist").innerHTML = f.map(([x, y]) => `<dt>${x}</dt><dd>${y}</dd>`).join("");
+}
+
+let syncing = false;
+async function syncLog() {
+  if (!ch.log || syncing) return;
+  syncing = true;
+  $("sync").disabled = true;
+  const t0 = Date.now();
+  let added = 0;
+  try {
+    let from = store.next;
+    for (let round = 0; round < 5000; round++) {
+      const q = new Uint8Array(4); new DataView(q.buffer).setUint32(0, from, true);
+      await ch.log.writeValue(q);
+      const dv = await ch.log.readValue();
+      if (dv.byteLength < 16) throw new Error(`réponse de ${dv.byteLength} octets`);
+      const first = dv.getUint32(0, true), next = dv.getUint32(4, true), start = dv.getUint32(8, true);
+      const n = dv.getUint16(12, true), size = dv.getUint16(14, true);
+      if (size !== 16) throw new Error(`format de mesure inconnu (${size} octets)`);
+      if (round === 0 && next < store.next) {
+        // La carte a recommencé à zéro (mémoire effacée) : on reprend depuis son début.
+        log(`historique : la carte recommence sa numérotation (${next} < ${store.next})`);
+        from = store.next = first;
+        continue;
+      }
+      if (start > from && raw.length) log(`historique : mesures ${from} à ${start - 1} perdues (écrasées sur la carte)`);
+      if (n) {
+        const add = new Uint8Array(dv.buffer, dv.byteOffset + 16, n * 16);
+        const merged = new Uint8Array(raw.length + add.length);
+        merged.set(raw); merged.set(add, raw.length);
+        raw = merged; added += n;
+      }
+      from = start + n;
+      store.next = from;
+      $("syncInfo").textContent = `Synchronisation : ${from - first} / ${next - first}`;
+      if (!n || from >= next) break;
+    }
+    store.syncedAt = Date.now();
+    saveStore();
+    histCache = null;
+    log(`historique : ${added} mesure(s) reçue(s) en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    $("syncInfo").textContent = added ? `${added} nouvelle(s) mesure(s).` : "Déjà à jour.";
+  } catch (e) {
+    saveStore();          // garde ce qui est déjà arrivé
+    histCache = null;
+    setStatus("Synchronisation interrompue : " + errText(e), true);
+    $("syncInfo").textContent = "";
+  } finally {
+    syncing = false;
+    $("sync").disabled = !ch.log;
+    renderHist();
+    drawChart();
+  }
+}
+
+function exportCsv() {
+  const pts = historyPoints(), recs = decodeRecords();
+  if (!recs.length) { setStatus("Pas encore d'historique à exporter."); return; }
+  const byKey = new Map(pts.map(p => [p.boot + ":" + p.up, p.t]));
+  const rows = ["date;heure;lumiere;interieur;entree;tension_mV;courant_mA;demarrage;secondes_depuis_demarrage"];
+  for (const r of recs) {
+    const t = byKey.get(r.boot + ":" + r.up);
+    const d = t ? new Date(t) : null;
+    rows.push([d ? d.toLocaleDateString("fr-FR") : "", d ? `${hhmm(d)}:${pad(d.getSeconds())}` : "", r.v, r.int ? 1 : 0, r.ext ? 1 : 0,
+               r.mv || "", r.ma === -32768 ? "" : r.ma, r.boot, r.up].join(";"));
+  }
+  const csv = rows.join("\n") + "\n";
+  const name = `poulailler-${new Date().toISOString().slice(0, 10)}.csv`;
+  const file = new File([csv], name, { type: "text/csv" });
+  (async () => {
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    } catch (e) { if (e && e.name === "AbortError") return; log("partage impossible : " + errText(e)); }
+    try { await navigator.clipboard.writeText(csv); setStatus(`CSV copié dans le presse-papiers (${recs.length} lignes).`); return; }
+    catch (e) { log("copie impossible : " + errText(e)); }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; a.click();
+  })();
 }
 
 async function readInfo() { showInfo(JSON.parse(dec.decode(await ch.info.readValue()))); }
@@ -359,6 +564,7 @@ async function attach(dev) {
     ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
            info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
     try { ch.ota = await svc.getCharacteristic(OTA); } catch { ch.ota = null; }   // programme sans mise à jour Bluetooth
+    try { ch.log = await svc.getCharacteristic(LOGC); } catch { ch.log = null; }  // programme sans journal longue durée
     ch.state.addEventListener("characteristicvaluechanged", async e => {
       try { showState(JSON.parse(dec.decode(e.target.value))); }
       catch { try { showState(JSON.parse(dec.decode(await ch.state.readValue()))); } catch {} }
@@ -373,7 +579,10 @@ async function attach(dev) {
     enable(true);
     retryDelay = 2000;
     setLink("ok", "connecté");
-    log("connecté");
+    log("connecté" + (ch.log ? "" : ", sans journal longue durée"));
+    if (!ch.log && info && info.lg) log("la carte a un journal mais l'iPhone ne le voit pas : Réglages > Bluetooth > Poulailler > Oublier cet appareil, puis reconnecte-toi");
+    $("sync").disabled = !ch.log;
+    syncLog();
     setStatus("Connecté.");
     $("connect").textContent = "Connecté";
   } catch (e) {
@@ -546,15 +755,25 @@ $("logCopy").addEventListener("click", async () => {
 $("otaStop").addEventListener("click", () => { otaStop = true; });
 
 $("connect").addEventListener("click", connect);
-$("reload").addEventListener("click", refresh);
+$("reload").addEventListener("click", async () => { await refresh(); syncLog(); });
+$("sync").addEventListener("click", syncLog);
+$("csv").addEventListener("click", exportCsv);
+document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
+  range = +b.dataset.r;
+  try { localStorage.setItem("poulailler-periode", String(range)); } catch {}
+  drawChart();
+}));
 $("save").addEventListener("click", save);
 $("defaults").addEventListener("click", async () => {
   if (!confirm("Revenir aux réglages d'origine du programme ?")) return;
   await send("reset", true); await new Promise(r => setTimeout(r, 500)); await readInfo();
 });
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
-setInterval(() => { if (state && curve) drawChart(); }, 60000);
+setInterval(() => { if (state) drawChart(); }, 60000);
+loadStore();
 loadCache();
+renderHist();
+drawChart();
 autoConnect();
 </script>
 </body>

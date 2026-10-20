@@ -138,3 +138,10 @@ constexpr uint32_t    MANUAL_MAX_MS   = 15 * MIN;
 constexpr uint16_t HISTORY_POINTS    = 240;
 constexpr uint32_t HISTORY_PERIOD_MS = FAST_TEST ? 5000 : 6 * MIN;
 constexpr uint8_t  JOURNAL_EVENINGS  = 7;    // dernières soirées gardées
+
+// Journal longue durée en flash (datalog) : une mesure par HISTORY_PERIOD_MS.
+// 12 fichiers de 2048 mesures (32 ko chacun) : environ 100 jours à 6 min.
+constexpr uint16_t LOG_FILE_RECORDS   = 2048;
+constexpr uint8_t  LOG_FILES          = 12;
+constexpr uint16_t LOG_FLUSH_RECORDS  = 10;   // écriture en flash toutes les 10 mesures (1 h)
+constexpr uint16_t LOG_BUFFER_RECORDS = 32;   // attente maximale en mémoire vive

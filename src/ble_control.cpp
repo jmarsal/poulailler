@@ -8,6 +8,7 @@
 #include <BLE2902.h>
 #include <Update.h>
 #include <esp_gap_ble_api.h>
+#include "datalog.h"
 
 namespace {
   // Identifiants (UUID) propres à ce montage, choisis au hasard une fois pour toutes.
@@ -17,6 +18,7 @@ namespace {
   const char* INFO_UUID    = "6b1f0004-3c2d-4e5a-9b7c-5f0e2a9c4d10";
   const char* CURVE_UUID   = "6b1f0005-3c2d-4e5a-9b7c-5f0e2a9c4d10";
   const char* OTA_UUID     = "6b1f0006-3c2d-4e5a-9b7c-5f0e2a9c4d10";
+  const char* LOG_UUID     = "6b1f0007-3c2d-4e5a-9b7c-5f0e2a9c4d10";
 
   // Mise à jour en cours : les morceaux arrivent dans la tâche Bluetooth et sont
   // écrits aussitôt dans la zone libre de la mémoire flash (l'autre emplacement
@@ -92,6 +94,22 @@ namespace {
     }
   };
 
+  // Journal : le téléphone écrit un numéro de mesure (4 octets), puis lit la
+  // réponse préparée ici : en-tête + jusqu'à 30 mesures à partir de ce numéro.
+  constexpr size_t LOG_REPLY = 16 + 30 * sizeof(DataLog::Record);   // 496 octets
+  uint8_t logReply[LOG_REPLY];
+
+  class LogCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* c) override {
+      uint32_t from = 0;
+      const uint8_t* d = c->getData();
+      const size_t len = c->getLength();
+      for (size_t i = 0; i < 4 && i < len; ++i) from |= (uint32_t)d[i] << (8 * i);
+      const size_t n = DataLog::read(from, logReply, sizeof(logReply));
+      c->setValue(logReply, n);
+    }
+  };
+
   class OtaCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* c) override {
       if (!otaOn || otaFailed) return;
@@ -130,7 +148,7 @@ namespace BleControl {
 
     BLEServer* server = BLEDevice::createServer();
     server->setCallbacks(new ServerCallbacks());
-    // 4 caractéristiques, dont une avec descripteur : il faut plus de place que les 15 handles par défaut.
+    // 6 caractéristiques, dont une avec descripteur : il faut plus de place que les 15 handles par défaut.
     BLEService* service = server->createService(BLEUUID(SERVICE_UUID), 24);
 
     BLECharacteristic* cmd = service->createCharacteristic(
@@ -143,6 +161,12 @@ namespace BleControl {
         OTA_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
     ota->setCallbacks(new OtaCallbacks());
     ota->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
+
+    BLECharacteristic* logChar = service->createCharacteristic(
+        LOG_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+    logChar->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM | ESP_GATT_PERM_WRITE_ENC_MITM);
+    logChar->setCallbacks(new LogCallbacks());
+    logChar->setValue(logReply, DataLog::read(0, logReply, 16));   // en-tête seul au départ
 
     stateChar = readOnly(service, STATE_UUID, true);
     infoChar = readOnly(service, INFO_UUID, false);

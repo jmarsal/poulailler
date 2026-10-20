@@ -23,9 +23,10 @@
 #include "ble_control.h"
 #include "settings.h"
 #include "history.h"
+#include "datalog.h"
 
 namespace {
-  constexpr const char* FIRMWARE = "2026-10-20 d";
+  constexpr const char* FIRMWARE = "2026-10-20 e";
 
   dusk::Controller controller(DUSK_CONFIG);
   dusk::Config cfg = DUSK_CONFIG;
@@ -118,7 +119,10 @@ namespace {
              FIRMWARE, FAST_TEST ? "test" : "reel", (unsigned long)boots, resetReason,
              History::eveningsCount(), temperatureRead(), (unsigned)(ESP.getFreeHeap() / 1024),
              (unsigned long)History::uptimeSec());
-    return String(head) + "\"cfg\":" + Settings::toJson(cfg) + ",\"j\":" + History::journalJson() + "}";
+    char lg[48];
+    snprintf(lg, sizeof(lg), "\"lg\":[%lu,%lu,%d],", (unsigned long)DataLog::firstSeq(),
+             (unsigned long)DataLog::nextSeq(), DataLog::ok() ? 1 : 0);
+    return String(head) + lg + "\"cfg\":" + Settings::toJson(cfg) + ",\"j\":" + History::journalJson() + "}";
   }
 
   void refreshCurve() {
@@ -149,6 +153,7 @@ namespace {
         setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);   // heure de Paris, été comme hiver
         tzset();
         timeSet = true;
+        DataLog::timeKnown((uint32_t)epoch, History::uptimeSec());
         say("heure réglée : " + clockText());
       }
     } else if (cmd.startsWith("ota begin ")) {
@@ -161,6 +166,7 @@ namespace {
         BleControl::publishState(stateJson(now, 0, 0));
         Lighting::setLevel(dusk::Output::Interior, 0);
         Lighting::setLevel(dusk::Output::Exterior, 0);
+        DataLog::flush();                // garde les mesures de la dernière heure
         delay(1500);                     // laisse partir le message vers le téléphone
         ESP.restart();
       }
@@ -208,6 +214,7 @@ void setup() {
     Serial.printf("Seuils : crépuscule <= %u, jour >= %u\n", cfg.duskThreshold, cfg.dayThreshold);
   }
 
+  DataLog::begin((uint16_t)boots);
   LightSensor::begin();
   Lighting::begin();
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);   // appui = niveau bas
@@ -295,8 +302,13 @@ void loop() {
   Lighting::setLevel(dusk::Output::Exterior, out);
 
   // Courbe des 24 h
-  if (measured && History::sample(controller.smoothed(), in > 0.0f, out > 0.0f) && ENABLE_BLE) {
-    refreshCurve();
+  if (measured && History::sample(controller.smoothed(), in > 0.0f, out > 0.0f)) {
+    if (ENABLE_BLE) refreshCurve();
+    // Même point dans le journal longue durée (batterie : pas encore de capteur).
+    const float sm = controller.smoothed();
+    const uint16_t v = sm < 0 ? 0 : sm > 4095 ? 4095 : (uint16_t)(sm + 0.5f);
+    const uint16_t packed = v | (in > 0.0f ? 0x1000 : 0) | (out > 0.0f ? 0x2000 : 0);
+    DataLog::add(timeSet ? (uint32_t)time(nullptr) : 0, History::uptimeSec(), packed, 0, DataLog::NO_CURRENT);
   }
 
   // Téléphone : état à chaque mesure et après une commande, infos toutes les 30 s

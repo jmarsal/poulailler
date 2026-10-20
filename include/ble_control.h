@@ -6,7 +6,8 @@
 //   - « etat »     : état courant en JSON, envoyé au téléphone à chaque mise à jour ;
 //   - « infos »    : réglages, santé de la carte et journal des soirées, en JSON ;
 //   - « courbe »   : les dernières 24 h de lumière, en binaire ;
-//   - « ota »      : les morceaux d'un nouveau programme, pendant une mise à jour.
+//   - « ota »      : les morceaux d'un nouveau programme, pendant une mise à jour ;
+//   - « journal »  : mesures longue durée (datalog), lues par paquets de 30.
 // Ce module ne décide de rien : il transmet les commandes à main.cpp.
 
 #pragma once
