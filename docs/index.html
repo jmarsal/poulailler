@@ -93,6 +93,15 @@
   </div>
 
   <div class="card">
+    <h2>Soirée manuelle</h2>
+    <p class="note" style="margin-top:0">Si la porte s'est fermée sans que rien ne s'allume : lance le déroulé normal de la soirée tout de suite (entrée 35 min, intérieur 1 h avec baisse progressive, selon les réglages).</p>
+    <div class="btns">
+      <button id="eveAll" disabled>Lancer la soirée</button>
+      <button id="eveInt" disabled>Intérieur seulement</button>
+    </div>
+  </div>
+
+  <div class="card">
     <dl class="facts">
       <dt>Phase</dt><dd id="fPhase">?</dd>
       <dt>Lumière</dt><dd id="fLum">?</dd>
@@ -203,7 +212,7 @@ function log(text) {
 }
 function renderLog() { const el = $("log"); if (el) { el.textContent = logLines.join("\n") || "(vide)"; el.scrollTop = el.scrollHeight; } }
 function enable(on) {
-  document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on);
+  document.querySelectorAll("button[data-cmd], #reload, #save, #defaults, #eveAll, #eveInt").forEach(b => b.disabled = !on);
   $("sync").disabled = !on || !ch.log;
   $("fw").disabled = !on || !ch.ota; $("otaGo").disabled = !on || !ch.ota;
 }
@@ -771,6 +780,13 @@ $("otaStop").addEventListener("click", () => { otaStop = true; });
 $("connect").addEventListener("click", connect);
 $("reload").addEventListener("click", async () => { await refresh(); syncLog(); });
 $("sync").addEventListener("click", syncLog);
+$("eveAll").addEventListener("click", () => {
+  const min = info ? info.cfg.eh : "?";
+  if (confirm(`Lancer la soirée maintenant ? L'entrée s'allume ${min} min et retient (ou rouvre) la porte pendant ce temps.`)) send("soiree");
+});
+$("eveInt").addEventListener("click", () => {
+  if (confirm("Lancer la soirée maintenant, intérieur seulement ? L'entrée reste éteinte, la porte n'est pas touchée.")) send("soiree int");
+});
 $("csv").addEventListener("click", exportCsv);
 document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
   range = +b.dataset.r;

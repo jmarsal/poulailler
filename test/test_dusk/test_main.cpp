@@ -177,6 +177,37 @@ void test_changer_le_seuil_en_marche() {
   TEST_ASSERT_EQUAL(2000, c.config().duskThreshold);
 }
 
+void test_soiree_manuelle_en_plein_jour() {
+  Controller c(CFG);
+  uint32_t t = reachDay(c);
+  t = feed(c, t, DIM, 100);                   // pas encore assez sombre
+  c.startEvening(t);                          // la porte est fermée : bouton du téléphone
+  TEST_ASSERT_EQUAL(Phase::Evening, c.phase());
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, t + 100));
+  t = feed(c, t, DIM, 700);                   // le déroulé se termine normalement
+  TEST_ASSERT_EQUAL(Phase::Night, c.phase());
+  t = feed(c, t, DARK, 500);                  // pas de deuxième soirée le même soir
+  TEST_ASSERT_EQUAL(Phase::Night, c.phase());
+}
+
+void test_soiree_manuelle_relancee_apres_la_nuit() {
+  Controller c(CFG);
+  uint32_t t = trigger(c, reachDay(c)) + STEP;
+  t = feed(c, t, DARK, 700);
+  TEST_ASSERT_EQUAL(Phase::Night, c.phase());
+  c.startEvening(t);
+  TEST_ASSERT_EQUAL(Phase::Evening, c.phase());
+  TEST_ASSERT_TRUE(c.level(Output::Interior, t + 50) > 0.9f);
+}
+
+void test_soiree_manuelle_apres_un_redemarrage() {
+  Controller c(CFG);
+  uint32_t t = feed(c, 0, DARK, 500);         // redémarrée de nuit : attente du jour
+  TEST_ASSERT_EQUAL(Phase::WaitDay, c.phase());
+  c.startEvening(t);
+  TEST_ASSERT_EQUAL(Phase::Evening, c.phase());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_demarrage_de_nuit_n_allume_pas);
@@ -193,5 +224,8 @@ int main() {
   RUN_TEST(test_le_lissage_amortit_un_eclair);
   RUN_TEST(test_millis_qui_repasse_par_zero);
   RUN_TEST(test_changer_le_seuil_en_marche);
+  RUN_TEST(test_soiree_manuelle_en_plein_jour);
+  RUN_TEST(test_soiree_manuelle_relancee_apres_la_nuit);
+  RUN_TEST(test_soiree_manuelle_apres_un_redemarrage);
   return UNITY_END();
 }

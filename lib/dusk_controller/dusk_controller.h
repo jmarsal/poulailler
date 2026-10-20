@@ -16,9 +16,12 @@
 //                                         │                                ▼
 //                                         └──(nuit minimale écoulée, puis jour confirmé)── NUIT
 //
+// La soirée peut aussi être lancée à la main (startEvening), depuis n'importe
+// quelle phase.
+//
 // Pendant la SOIRÉE, chaque sortie suit son propre profil à partir de
 // l'instant du déclenchement : montée, pleine lumière, fondu, extinction.
-// Réglage actuel : extérieur 30 min puis extinction ; intérieur 30 min de
+// Réglage actuel : extérieur 35 min puis extinction ; intérieur 30 min de
 // pleine lumière puis 30 min de baisse progressive.
 //
 // Garde-fous :
@@ -70,6 +73,11 @@ class Controller {
   // À appeler souvent (dans loop) : termine la soirée entre deux mesures.
   // Renvoie true si la phase a changé.
   bool tick(uint32_t nowMs);
+
+  // Soirée lancée à la main (bouton du téléphone) : démarre le déroulé tout de
+  // suite, quelle que soit la phase (une soirée en cours repart de zéro). Ensuite
+  // tout se passe comme pour un crépuscule détecté, verrou de nuit compris.
+  void startEvening(uint32_t nowMs);
 
   // Niveau voulu pour une sortie à cet instant, de 0.0 à 1.0.
   float level(Output out, uint32_t nowMs) const;

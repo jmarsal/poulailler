@@ -106,6 +106,11 @@ bool Controller::tick(uint32_t nowMs) {
   return false;
 }
 
+void Controller::startEvening(uint32_t nowMs) {
+  triggerAt_ = nowMs;
+  enter(Phase::Evening, nowMs);
+}
+
 float Controller::level(Output out, uint32_t nowMs) const {
   if (phase_ != Phase::Evening) return 0.0f;
   const Profile& p = out == Output::Interior ? cfg_.interior : cfg_.exterior;

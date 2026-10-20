@@ -26,7 +26,7 @@
 #include "datalog.h"
 
 namespace {
-  constexpr const char* FIRMWARE = "2026-10-20 e";
+  constexpr const char* FIRMWARE = "2026-10-20 f";
 
   dusk::Controller controller(DUSK_CONFIG);
   dusk::Config cfg = DUSK_CONFIG;
@@ -36,6 +36,10 @@ namespace {
   // Allumage manuel, une entrée par sortie (0 = intérieur, 1 = extérieur).
   bool     manualOn[2]    = {false, false};
   uint32_t manualStart[2] = {0, 0};
+
+  // Soirée lancée à la main sans l'entrée (porte déjà fermée) : l'entrée reste
+  // éteinte jusqu'à la fin de cette soirée.
+  bool skipExterior = false;
 
   // Santé et heure
   uint32_t boots = 0;
@@ -144,6 +148,14 @@ namespace {
     else if (cmd == "int off") { set(0, false); say("intérieur éteint"); }
     else if (cmd == "off")     { set(0, false); set(1, false); say("tout éteint"); }
     else if (cmd == "etat")    { }
+    else if (cmd == "soiree" || cmd == "soiree int") {
+      // Bouton « Lancer la soirée » : la porte est fermée mais rien ne s'est allumé.
+      manualOn[0] = manualOn[1] = false;
+      skipExterior = (cmd == "soiree int");
+      controller.startEvening(now);
+      printTransition(now);              // journal des soirées et moniteur
+      say(skipExterior ? "soirée lancée à la main, intérieur seulement" : "soirée lancée à la main");
+    }
     else if (cmd.startsWith("time ")) {
       // Heure donnée par le téléphone, en secondes depuis 1970 (UTC).
       long epoch = cmd.substring(5).toInt();
@@ -296,6 +308,8 @@ void loop() {
   // Sorties : cycle automatique, remplacé par la pleine puissance si allumage manuel
   float in = controller.level(dusk::Output::Interior, now);
   float out = controller.level(dusk::Output::Exterior, now);
+  if (controller.phase() != dusk::Phase::Evening) skipExterior = false;
+  if (skipExterior) out = 0.0f;
   if (manualActive(dusk::Output::Interior, now)) in = 1.0f;
   if (manualActive(dusk::Output::Exterior, now)) out = 1.0f;
   Lighting::setLevel(dusk::Output::Interior, in);
