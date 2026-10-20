@@ -87,7 +87,7 @@ constexpr dusk::Config DUSK_REAL = {
   // Intensité max de l'intérieur : 1.0 pour 60 cm de ruban (environ 0,32 A).
   // Avec 1 m de ruban, passer à 0.6f : lumière plus étalée, environ 0,16 A.
   /* interior      */ { 5000, 30 * MIN, 30 * MIN, 1.0f },
-  /* exterior      */ { 5000, 30 * MIN, 10000,    1.0f },  // extinction en 10 s
+  /* exterior      */ { 5000, 35 * MIN, 10000,    1.0f },  // 15 min avant la fermeture de la porte + 20 min après ; extinction en 10 s
 };
 
 constexpr dusk::Config DUSK_CONFIG     = FAST_TEST ? DUSK_FAST : DUSK_REAL;
