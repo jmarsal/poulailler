@@ -11,8 +11,8 @@
 // synchronisation : elle garde environ LOG_FILES × LOG_FILE_RECORDS mesures en
 // tournant (les plus anciennes sont écrasées), soit une centaine de jours.
 //
-// Usure de la flash : les mesures attendent en mémoire vive et sont écrites par
-// paquets (une fois par heure). Une coupure de courant perd au plus ce paquet.
+// Chaque mesure est écrite en flash dès qu'elle est prise (LOG_FLUSH_RECORDS) :
+// une coupure de courant ne perd rien.
 
 #pragma once
 #include <Arduino.h>

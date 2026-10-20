@@ -143,5 +143,8 @@ constexpr uint8_t  JOURNAL_EVENINGS  = 7;    // dernières soirées gardées
 // 12 fichiers de 2048 mesures (32 ko chacun) : environ 100 jours à 6 min.
 constexpr uint16_t LOG_FILE_RECORDS   = 2048;
 constexpr uint8_t  LOG_FILES          = 12;
-constexpr uint16_t LOG_FLUSH_RECORDS  = 10;   // écriture en flash toutes les 10 mesures (1 h)
+// Écriture en flash à chaque mesure : une coupure (accu à plat) ne perd rien.
+// Usure négligeable : LittleFS répartit les écritures sur 1,4 Mo, soit environ
+// un effacement de bloc par jour pour des blocs donnés pour 100 000 cycles.
+constexpr uint16_t LOG_FLUSH_RECORDS  = 1;
 constexpr uint16_t LOG_BUFFER_RECORDS = 32;   // attente maximale en mémoire vive

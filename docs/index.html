@@ -504,10 +504,15 @@ try { range = +(localStorage.getItem("poulailler-periode") ?? 1); } catch {}
 
 function chartPoints(range) {
   const t1 = Date.now();
-  if (range === 1 && curve && curve.length) {
-    return { t0: t1 - 86400000, t1, pts: curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t >= t1 - 86400000) };
-  }
   let pts = historyPoints();
+  // Courbe de la carte (depuis son dernier démarrage) : complète l'historique avec les
+  // points plus récents que la dernière synchronisation. Après un redémarrage de la
+  // carte, l'historique du téléphone garde tout ce qui précède.
+  if (curve && curve.length && state) {
+    const lastT = pts.length ? pts[pts.length - 1].t : 0;
+    const extra = curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t > lastT + 60000);
+    if (extra.length) pts = pts.concat(extra);
+  }
   if (range) pts = pts.filter(p => p.t >= t1 - range * 86400000);
   const t0 = range ? t1 - range * 86400000 : (pts.length ? pts[0].t : t1 - 86400000);
   // Au-delà de 1500 points, on fait des moyennes : la courbe reste lisible et légère.
@@ -729,7 +734,7 @@ function fromB64(b) { const s = atob(b || ""); const u = new Uint8Array(s.length
 function loadStore() {
   try {
     const o = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
-    if (o) { store = { next: o.next || 0, syncedAt: o.syncedAt || 0 }; raw = fromB64(o.data); }
+    if (o) { store = { next: o.next || 0, syncedAt: o.syncedAt || 0, remote: !!o.remote }; raw = fromB64(o.data); }
   } catch (e) { log("ERREUR lecture de l'historique du téléphone : " + errText(e)); }
 }
 function saveStore() {
@@ -845,9 +850,12 @@ async function ghPush(force) {
 // Appareil sans jeton : on relit les données partagées (seulement les fichiers nouveaux).
 let remoteAt = 0;
 async function loadRemote() {
-  if (ghToken() || live) return;
+  // Lecture des données partagées : seulement sur un appareil qui ne les produit pas
+  // (pas de jeton, et pas un téléphone qui a déjà son propre historique Bluetooth).
+  if (ghToken() || live || (navigator.bluetooth && raw.length && !store.remote)) return;
   try {
     const meta = await (await fetch(GH.raw + "meta.json?t=" + Date.now(), { cache: "no-store" })).json();
+    if (meta.bytes < raw.length) return;   // jamais moins que ce qu'on a déjà
     const parts = [], from = Math.floor(Math.min(raw.length, meta.bytes) / meta.chunkBytes);
     for (let k = from; k * meta.chunkBytes < meta.bytes; k++) {
       const r = await fetch(GH.raw + `mesures/${k}.bin?t=` + Date.now(), { cache: "no-store" });
@@ -856,7 +864,7 @@ async function loadRemote() {
     }
     const keep = raw.subarray(0, from * meta.chunkBytes), merged = new Uint8Array(keep.length + parts.reduce((a, p) => a + p.length, 0));
     merged.set(keep); let o = keep.length; for (const p of parts) { merged.set(p, o); o += p.length; }
-    raw = merged; store.syncedAt = meta.syncedAt || meta.updatedAt; histCache = null; saveStore();
+    raw = merged; store.syncedAt = meta.syncedAt || meta.updatedAt; store.remote = true; histCache = null; saveStore();
     curve = meta.curve || curve;
     if (meta.state) showState(meta.state, meta.stateAt);
     if (meta.info) showInfo(meta.info);
@@ -885,7 +893,7 @@ async function syncLog() {
   const t0 = Date.now();
   let added = 0;
   try {
-    let from = store.next;
+    let from = store.next, dedupe = false, known = null;
     for (let round = 0; round < 5000; round++) {
       const q = new Uint8Array(4); new DataView(q.buffer).setUint32(0, from, true);
       await ch.log.writeValue(q);
@@ -895,13 +903,26 @@ async function syncLog() {
       const n = dv.getUint16(12, true), size = dv.getUint16(14, true);
       if (size !== 16) throw new Error(`format de mesure inconnu (${size} octets)`);
       if (round === 0 && next < store.next) {
-        // La carte a recommencé à zéro (mémoire effacée) : on reprend depuis son début.
-        log(`historique : la carte recommence sa numérotation (${next} < ${store.next})`);
+        // La carte a moins de mesures qu'attendu : redémarrage brutal (la dernière heure
+        // n'était pas encore écrite en flash) ou mémoire effacée. On relit depuis son début ;
+        // les mesures déjà connues sont écartées plus bas.
+        log(`historique : la carte a repris sa numérotation plus bas (${next} < ${store.next}), relecture`);
         from = store.next = first;
+        dedupe = true;
         continue;
       }
       if (start > from && raw.length) log(`historique : mesures ${from} à ${start - 1} perdues (écrasées sur la carte)`);
-      if (n) {
+      if (n && dedupe) {
+        // Ne garde que les mesures absentes (même démarrage et même instant).
+        if (!known) { known = new Set(); const d = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+          for (let o = Math.max(0, raw.length - 4096 * 16); o + 16 <= raw.length; o += 16) known.add(d.getUint16(o + 8, true) + ":" + d.getUint32(o + 4, true)); }
+        const keep = [];
+        for (let k = 0; k < n; k++) { const o = 16 + 16 * k; const key = dv.getUint16(o + 8, true) + ":" + dv.getUint32(o + 4, true);
+          if (!known.has(key)) { known.add(key); keep.push(new Uint8Array(dv.buffer, dv.byteOffset + o, 16)); } }
+        const merged = new Uint8Array(raw.length + keep.length * 16);
+        merged.set(raw); keep.forEach((r, k) => merged.set(r, raw.length + 16 * k));
+        raw = merged; added += keep.length;
+      } else if (n) {
         const add = new Uint8Array(dv.buffer, dv.byteOffset + 16, n * 16);
         const merged = new Uint8Array(raw.length + add.length);
         merged.set(raw); merged.set(add, raw.length);
