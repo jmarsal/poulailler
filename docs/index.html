@@ -293,12 +293,13 @@ function drawChart() {
 async function readInfo() { showInfo(JSON.parse(dec.decode(await ch.info.readValue()))); }
 async function readCurve() { curve = parseCurve(await ch.curve.readValue()); drawChart(); saveCache(); }
 async function refresh() {
-  try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + e.message, true); }
+  try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + errText(e), true); }
 }
 
 // Connexion. La première fois : choix de l'appareil et code (requestDevice).
 // Ensuite : reconnexion automatique quand la page est ouverte et la carte à portée.
 let device = null, connecting = false, retryTimer = null, retryDelay = 2000;
+const errText = e => (e && (e.message || e.name)) || String(e || "erreur inconnue");
 
 function setLink(kind, text) {
   const l = $("link"); l.className = "link" + (kind ? " " + kind : ""); $("linkText").textContent = text;
@@ -310,6 +311,7 @@ async function attach(dev) {
   clearTimeout(retryTimer);
   setLink("wait", "connexion…");
   try {
+    try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch {}   // repart d'une liaison propre
     const svc = await (await dev.gatt.connect()).getPrimaryService(SERVICE);
     ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
            info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
@@ -331,7 +333,7 @@ async function attach(dev) {
   } catch (e) {
     live = false;
     setLink("", "hors de portée");
-    setStatus("Pas de connexion : " + e.message, true);
+    setStatus("Pas de connexion (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
     scheduleRetry();
   } finally {
     connecting = false;
@@ -349,6 +351,7 @@ function scheduleRetry() {
 function adopt(dev) {
   if (device === dev) return;
   device = dev;
+  dev.__adopted = true;
   dev.addEventListener("gattserverdisconnected", () => {
     enable(false);
     live = false; markStale(Date.now());
@@ -365,14 +368,14 @@ async function connect() {
     setStatus("Ce navigateur ne gère pas le Bluetooth. Sur iPhone, ouvre cette page dans l'appli Bluefy.", true);
     return;
   }
-  if (device && !device.gatt.connected) { retryDelay = 2000; return attach(device); }
+  clearTimeout(retryTimer);
   try {
     setStatus("Recherche du poulailler…");
     const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
     adopt(dev);
     await attach(dev);
   } catch (e) {
-    setStatus("Échec : " + e.message, true);
+    setStatus("Échec : " + errText(e), true);
   }
 }
 
@@ -385,6 +388,9 @@ async function autoConnect() {
   } catch {}
 }
 
+// En quittant la page, on libère la carte : elle n'accepte qu'un téléphone à la fois.
+window.addEventListener("pagehide", () => { try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch {} });
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && device && !device.gatt.connected) { retryDelay = 2000; attach(device); }
 });
@@ -394,7 +400,7 @@ async function send(cmd, quiet) {
   try {
     await ch.cmd.writeValue(enc.encode(cmd));
     if (!quiet) setStatus("Envoyé : " + cmd);
-  } catch (e) { setStatus("Échec de l'envoi : " + e.message, true); }
+  } catch (e) { setStatus("Échec de l'envoi : " + errText(e), true); }
 }
 
 async function save() {
@@ -455,7 +461,7 @@ async function otaSend() {
     if (res && res.includes("réussie")) $("otaInfo").textContent = "Réussi. La carte redémarre : reconnecte-toi dans une dizaine de secondes, puis vérifie la version dans « Santé de la carte ».";
     else throw new Error(res || "pas de réponse");
   } catch (e) {
-    $("otaInfo").textContent = "Mise à jour non faite : " + e.message + ". La carte garde son programme actuel.";
+    $("otaInfo").textContent = "Mise à jour non faite : " + errText(e) + ". La carte garde son programme actuel.";
   } finally {
     $("otaStop").disabled = true; $("otaGo").disabled = !ch.ota;
   }
