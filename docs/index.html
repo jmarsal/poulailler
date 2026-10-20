@@ -73,7 +73,7 @@
   body.live .connect button{display:none}
   #status{font-size:14px;color:var(--muted);margin-top:8px;min-height:1.3em}
   body.live #status{margin-top:0}
-  body.live #status:not(.err){display:none}
+  body.live #status:empty{display:none}
   body.nobt .connect button{display:none}
   #status.err{color:var(--warn)}
 
@@ -125,6 +125,9 @@
   .form label small{display:block;color:var(--muted);font-size:12px;font-weight:400}
   .form input{font:inherit;width:92px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);text-align:right}
   .unit{color:var(--muted);font-size:13px;margin-left:4px}
+  .form input.dirty{border-color:var(--on);box-shadow:0 0 0 2px color-mix(in srgb,var(--on) 35%,transparent)}
+  .result{font-size:14px;margin-top:10px;min-height:1.3em;color:var(--muted)}
+  .result.ok{color:var(--ok)} .result.bad{color:var(--warn)}
   .savebar{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom));z-index:2}
 
   /* Journal technique */
@@ -265,6 +268,7 @@
         <button id="save" class="primary" disabled>Enregistrer</button>
         <button id="defaults" disabled>Valeurs d'origine</button>
       </div>
+      <div id="saveInfo" class="result"></div>
       <p class="note">Enregistré dans la carte : gardé après une coupure de courant ou une mise à jour.</p>
     </div>
 
@@ -345,16 +349,20 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-10-20 g";
+const PAGE_VERSION = "2026-10-20 h";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
 const dec = new TextDecoder(), enc = new TextEncoder();
 let ch = {}, state = null, stateAt = 0, info = null, curve = null, lastMsgSeen = -1;
 
+let statusTimer = null;
 function setStatus(text, err) {
   const s = $("status"); s.textContent = text; s.className = err ? "err" : "";
   if (err) log("ERREUR " + text);
+  // Connecté : les messages d'information s'effacent d'eux-mêmes après 5 s.
+  clearTimeout(statusTimer);
+  if (live && !err) statusTimer = setTimeout(() => { if ($("status").textContent === text) $("status").textContent = ""; }, 5000);
 }
 
 // Journal technique : 80 dernières lignes, gardées dans le téléphone.
@@ -441,7 +449,7 @@ function updateHero() {
 
 let lastN = null;
 function showState(s, at) {
-  if (!at && s && s.m && s.n !== lastN) { if (lastN !== null) log("carte : " + s.m); lastN = s.n; }
+  if (!at && s && s.m && s.n !== lastN) { if (lastN !== null) { log("carte : " + s.m); if (boardMsgs) boardMsgs.push(s.m); } lastN = s.n; }
   state = s; stateAt = at || Date.now();
   if (live) saveCache();
   $("fPhase").textContent = PHASES[s.p] ?? "?";
@@ -460,6 +468,7 @@ function showState(s, at) {
 function showInfo(j) {
   info = j;
   for (const [name, key] of SETTINGS) $("s_" + name).value = j.cfg[key];
+  markDirty();
   const h = [
     ["Mode", j.mode === "test" ? "test (temps accéléré)" : "réel"],
     ["En marche depuis", duration(j.u)],
@@ -467,8 +476,8 @@ function showInfo(j) {
     ["Soirées", `${j.ev} depuis le démarrage`],
     ["Température puce", `${j.t} °C`],
     ["Mémoire libre", `${j.heap} ko`],
-    ["Programme", j.ver],
-    ["Application", PAGE_VERSION],
+    ["Programme de la carte", j.ver],
+    ["Cette application", PAGE_VERSION],
   ];
   $("health").innerHTML = h.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
   const items = j.j.slice().reverse().map(([start, end, val]) => {
@@ -1127,20 +1136,53 @@ async function send(cmd, quiet) {
   } catch (e) { setStatus("Échec de l'envoi : " + errText(e), true); }
 }
 
+// Enregistrement des réglages : on envoie chaque changement, on relit la carte, et on
+// affiche clairement ce qu'elle a accepté ou refusé (avec sa réponse).
+const LABELS = { dusk: "seuil du soir", day: "seuil du jour", ext_hold: "durée de l'entrée", ext_max: "intensité de l'entrée",
+                 int_hold: "pleine lumière", int_fade: "extinction progressive", int_max: "intensité intérieure" };
+let boardMsgs = null;   // réponses de la carte collectées pendant un enregistrement
+function saveResult(text, kind) { const el = $("saveInfo"); el.textContent = text; el.className = "result " + (kind || ""); }
 async function save() {
-  if (!info) return;
+  if (!info || !live) { saveResult("Pas connecté à la carte : rien n'a été enregistré.", "bad"); return; }
   const changes = [];
   for (const [name, key] of SETTINGS) {
     const v = $("s_" + name).value.trim();
-    if (v !== String(info.cfg[key])) changes.push([name, v]);
+    if (v !== String(info.cfg[key])) changes.push([name, key, v]);
   }
-  if (!changes.length) { setStatus("Aucun changement."); return; }
-  // Seuils : on envoie d'abord celui qui libère la place à l'autre.
-  changes.sort((a, b) => (a[0] === "day" && +a[1] > info.cfg.day) || (a[0] === "dusk" && +a[1] < info.cfg.dusk) ? -1 : 0);
-  for (const [name, v] of changes) { await send(`set ${name} ${v}`, true); await new Promise(r => setTimeout(r, 250)); }
-  await new Promise(r => setTimeout(r, 400));
-  await readInfo();
-  drawChart();
+  if (!changes.length) { saveResult("Aucun changement : les valeurs affichées sont déjà celles de la carte.", "ok"); return; }
+  // Seuils : d'abord celui qui libère la place à l'autre (jour monté, ou soir baissé).
+  const first = ([n, , v]) => (n === "day" && +v > info.cfg.day) || (n === "dusk" && +v < info.cfg.dusk) ? 0 : 1;
+  changes.sort((a, b) => first(a) - first(b));
+  $("save").disabled = true; $("save").textContent = "Enregistrement…";
+  saveResult("Envoi à la carte…");
+  boardMsgs = [];
+  try {
+    for (const [name, , v] of changes) {
+      await send(`set ${name} ${v}`, true);
+      await sleep(300);
+      try { await freshState(); } catch {}   // récupère la réponse de la carte à ce réglage
+    }
+    await sleep(500);
+    await readInfo();
+    const ok = [], bad = [];
+    for (const [name, key, v] of changes) (String(info.cfg[key]) === v ? ok : bad).push(name);
+    const replies = boardMsgs.filter(m => !/: \d+( min| %)?$/.test(m));   // réponses autres qu'une confirmation
+    if (!bad.length) saveResult(`Enregistré dans la carte : ${ok.map(n => `${LABELS[n]} ${info.cfg[SETTINGS.find(x => x[0] === n)[1]]}`).join(", ")}.`, "ok");
+    else saveResult(`${ok.length ? `Enregistré : ${ok.map(n => LABELS[n]).join(", ")}. ` : ""}Refusé : ${bad.map(n => LABELS[n]).join(", ")}${replies.length ? ` (la carte répond : ${replies.join(" ; ")})` : ""}. Les valeurs refusées ont été remises à celles de la carte.`, "bad");
+    log(`réglages : ${ok.length} accepté(s), ${bad.length} refusé(s)${replies.length ? " — " + replies.join(" ; ") : ""}`);
+  } catch (e) {
+    saveResult("Enregistrement interrompu : " + errText(e), "bad");
+  } finally {
+    boardMsgs = null;
+    $("save").textContent = "Enregistrer"; $("save").disabled = !live;
+    markDirty();
+    drawChart();
+  }
+}
+// Champs modifiés et pas encore enregistrés : surlignés.
+function markDirty() {
+  if (!info) return;
+  for (const [name, key] of SETTINGS) $("s_" + name).classList.toggle("dirty", $("s_" + name).value.trim() !== String(info.cfg[key]));
 }
 
 // Mise à jour du programme : « ota begin », morceaux de 180 octets, « ota end ».
@@ -1240,9 +1282,11 @@ document.querySelectorAll("#range button").forEach(b => b.addEventListener("clic
   drawChart();
 }));
 $("save").addEventListener("click", save);
+SETTINGS.forEach(([name]) => $("s_" + name).addEventListener("input", markDirty));
 $("defaults").addEventListener("click", async () => {
   if (!confirm("Revenir aux réglages d'origine du programme ?")) return;
   await send("reset", true); await new Promise(r => setTimeout(r, 500)); await readInfo();
+  saveResult(`Valeurs d'origine remises : seuil du soir ${info.cfg.dusk}, seuil du jour ${info.cfg.day}, entrée ${info.cfg.eh} min.`, "ok");
 });
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
 setInterval(() => { if (state) drawChart(); }, 60000);
