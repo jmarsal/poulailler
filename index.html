@@ -41,6 +41,11 @@
   .form{display:grid;grid-template-columns:1fr auto;gap:10px 12px;align-items:center}
   .form label{font-size:15px}
   .form input{font:inherit;width:96px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-align:right}
+  .link{font-size:14px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--line)}
+  .link.ok .dot{background:#3fae5a;box-shadow:0 0 8px #3fae5a}
+  .link.wait .dot{background:var(--on);animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
   ul.journal{list-style:none;padding:0;margin:0;font-size:15px}
   ul.journal li{padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
   ul.journal li:last-child{border-bottom:0}
@@ -48,7 +53,7 @@
 </head>
 <body>
 <main>
-  <h1>Poulailler</h1>
+  <div class="row"><h1>Poulailler</h1><span class="link" id="link"><span class="dot"></span><span id="linkText">déconnecté</span></span></div>
   <p class="sub">Éclairage du soir, commande par Bluetooth</p>
 
   <div class="card">
@@ -264,16 +269,21 @@ async function refresh() {
   try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + e.message, true); }
 }
 
-async function connect() {
-  if (!navigator.bluetooth) {
-    setStatus("Ce navigateur ne gère pas le Bluetooth. Sur iPhone, ouvre cette page dans l'appli Bluefy.", true);
-    return;
-  }
+// Connexion. La première fois : choix de l'appareil et code (requestDevice).
+// Ensuite : reconnexion automatique quand la page est ouverte et la carte à portée.
+let device = null, connecting = false, retryTimer = null, retryDelay = 2000;
+
+function setLink(kind, text) {
+  const l = $("link"); l.className = "link" + (kind ? " " + kind : ""); $("linkText").textContent = text;
+}
+
+async function attach(dev) {
+  if (connecting) return;
+  connecting = true;
+  clearTimeout(retryTimer);
+  setLink("wait", "connexion…");
   try {
-    setStatus("Recherche du poulailler…");
-    const device = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
-    device.addEventListener("gattserverdisconnected", () => { enable(false); setStatus("Déconnecté.", true); $("connect").textContent = "Se reconnecter"; });
-    const svc = await (await device.gatt.connect()).getPrimaryService(SERVICE);
+    const svc = await (await dev.gatt.connect()).getPrimaryService(SERVICE);
     ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
            info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
     try { ch.ota = await svc.getCharacteristic(OTA); } catch { ch.ota = null; }   // programme sans mise à jour Bluetooth
@@ -286,12 +296,68 @@ async function connect() {
     await send("time " + Math.floor(Date.now() / 1000), true);
     await refresh();
     enable(true);
+    retryDelay = 2000;
+    setLink("ok", "connecté");
     setStatus("Connecté.");
     $("connect").textContent = "Connecté";
+  } catch (e) {
+    setLink("", "hors de portée");
+    setStatus("Pas de connexion : " + e.message, true);
+    scheduleRetry();
+  } finally {
+    connecting = false;
+  }
+}
+
+// Nouvel essai tant que la page est visible : 2 s, puis de plus en plus espacé (30 s au plus).
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  if (!device || document.visibilityState !== "visible") return;
+  retryTimer = setTimeout(() => { if (!device.gatt.connected) attach(device); }, retryDelay);
+  retryDelay = Math.min(retryDelay * 2, 30000);
+}
+
+function adopt(dev) {
+  if (device === dev) return;
+  device = dev;
+  dev.addEventListener("gattserverdisconnected", () => {
+    enable(false);
+    setLink("", "déconnecté");
+    setStatus("Déconnecté, reconnexion automatique…", true);
+    $("connect").textContent = "Se reconnecter";
+    retryDelay = 2000;
+    scheduleRetry();
+  });
+}
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    setStatus("Ce navigateur ne gère pas le Bluetooth. Sur iPhone, ouvre cette page dans l'appli Bluefy.", true);
+    return;
+  }
+  if (device && !device.gatt.connected) { retryDelay = 2000; return attach(device); }
+  try {
+    setStatus("Recherche du poulailler…");
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
+    adopt(dev);
+    await attach(dev);
   } catch (e) {
     setStatus("Échec : " + e.message, true);
   }
 }
+
+// Au chargement de la page : si le navigateur se souvient de la carte, on s'y reconnecte seul.
+async function autoConnect() {
+  if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+  try {
+    const known = (await navigator.bluetooth.getDevices()).find(d => d.name === "Poulailler");
+    if (known) { adopt(known); setStatus("Reconnexion au poulailler…"); attach(known); }
+  } catch {}
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && device && !device.gatt.connected) { retryDelay = 2000; attach(device); }
+});
 
 async function send(cmd, quiet) {
   if (!ch.cmd) return;
@@ -376,6 +442,7 @@ $("defaults").addEventListener("click", async () => {
 });
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
 setInterval(() => { if (state && curve) drawChart(); }, 60000);
+autoConnect();
 </script>
 </body>
 </html>
