@@ -442,7 +442,7 @@ function renderHist() {
   }
   if (total > pts.length) f.push(["Sans heure connue", `${total - pts.length} (ignorées sur la courbe)`]);
   if (store.syncedAt) { const d = new Date(store.syncedAt); f.push(["Dernière synchro", `${dayLabel(d)} à ${hhmm(d)}`]); }
-  if (info && info.lg) f.push(["Sur la carte", info.lg[2] ? `n° ${info.lg[0]} à ${info.lg[1] - 1}` : "stockage indisponible"]);
+  if (info && info.lg) f.push(["Sur la carte", !info.lg[2] ? "stockage indisponible" : info.lg[1] > info.lg[0] ? `${info.lg[1] - info.lg[0]} mesure(s), n° ${info.lg[0]} à ${info.lg[1] - 1}` : "aucune mesure"]);
   $("hist").innerHTML = f.map(([x, y]) => `<dt>${x}</dt><dd>${y}</dd>`).join("");
 }
 
