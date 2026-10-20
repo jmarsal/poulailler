@@ -39,6 +39,7 @@
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
        padding:max(12px,env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom))}
   main{max-width:560px;margin:0 auto}
+  @media (min-width:900px){ main,.top,.connect{max-width:760px} }
   h2{font-size:17px;margin:0 0 10px;letter-spacing:-.01em}
   h3{font-size:15px;margin:18px 0 8px;color:var(--muted);font-weight:600}
   button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px 10px;background:var(--soft);color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -73,6 +74,7 @@
   #status{font-size:14px;color:var(--muted);margin-top:8px;min-height:1.3em}
   body.live #status{margin-top:0}
   body.live #status:not(.err){display:none}
+  body.nobt .connect button{display:none}
   #status.err{color:var(--warn)}
 
   /* Le ciel : la phase en cours, l'élément qu'on voit d'abord */
@@ -229,7 +231,7 @@
     </div>
 
     <div class="card">
-      <h2>Historique sur ce téléphone</h2>
+      <h2>Historique</h2>
       <dl class="facts" id="hist"><dt>Mesures</dt><dd>aucune</dd></dl>
       <div class="btns">
         <button id="sync" disabled>Synchroniser</button>
@@ -264,6 +266,20 @@
         <button id="defaults" disabled>Valeurs d'origine</button>
       </div>
       <p class="note">Enregistré dans la carte : gardé après une coupure de courant ou une mise à jour.</p>
+    </div>
+
+    <div class="card">
+      <h2>Partage avec le Mac</h2>
+      <p class="note" style="margin-top:0">Sur ce téléphone, colle un jeton GitHub limité au dépôt poulailler : chaque synchronisation envoie alors les mesures sur la branche « donnees ». Sur le Mac, ouvre la même adresse : sans jeton, la page affiche ces données. Le dépôt est public, ces relevés le sont donc aussi.</p>
+      <div class="form">
+        <label for="ghToken">Jeton GitHub<small id="ghState">Aucun jeton : cet appareil lit les données partagées.</small></label>
+        <input id="ghToken" type="password" autocomplete="off" placeholder="github_pat_…" style="width:150px;text-align:left">
+      </div>
+      <div class="btns">
+        <button id="ghSave">Enregistrer le jeton</button>
+        <button id="ghPush" disabled>Envoyer maintenant</button>
+      </div>
+      <div id="ghInfo" class="note" style="margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -759,6 +775,108 @@ function renderHist() {
   $("hist").innerHTML = f.map(([x, y]) => `<dt>${x}</dt><dd>${y}</dd>`).join("");
 }
 
+// Partage par le dépôt GitHub (branche « donnees ») :
+//   - le téléphone qui a un jeton envoie ses mesures (fichiers de 32 ko, comme sur la carte)
+//     et un meta.json avec le dernier état, les réglages et la santé ;
+//   - un appareil sans jeton (le Mac) les relit et les affiche, sans Bluetooth.
+const GH = { api: "https://api.github.com/repos/jmarsal/poulailler", raw: "https://raw.githubusercontent.com/jmarsal/poulailler/donnees/", branch: "donnees" };
+const CHUNK_BYTES = 2048 * 16;
+const ghToken = () => { try { return localStorage.getItem("poulailler-gh-jeton") || ""; } catch { return ""; } };
+let gh = { up: 0, sha: {}, at: 0 };
+try { gh = { ...gh, ...JSON.parse(localStorage.getItem("poulailler-gh") || "{}") }; } catch {}
+const saveGh = () => { try { localStorage.setItem("poulailler-gh", JSON.stringify(gh)); } catch {} };
+
+async function ghCall(path, opts = {}) {
+  const r = await fetch(GH.api + path, { ...opts, headers: { Authorization: "Bearer " + ghToken(), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+  if (r.status === 404 && opts.allow404) return null;
+  if (!r.ok) {
+    let m = ""; try { m = (await r.json()).message; } catch {}
+    throw new Error(`GitHub ${r.status}${m ? " : " + m : ""}${r.status === 401 ? " (jeton invalide ou expiré)" : r.status === 403 ? " (droits du jeton insuffisants : Contents en écriture sur poulailler)" : ""}`);
+  }
+  return r.status === 204 ? null : r.json();
+}
+// Branche « donnees » sans historique commun avec le code : créée au premier envoi.
+async function ghEnsureBranch() {
+  if (await ghCall(`/branches/${GH.branch}`, { allow404: true })) return;
+  const tree = await ghCall("/git/trees", { method: "POST", body: JSON.stringify({ tree: [{ path: "LISEZMOI.md", mode: "100644", type: "blob",
+    content: "Mesures du poulailler envoyées par l'application (mesures/N.bin : 16 octets par mesure, meta.json : dernier état).\n" }] }) });
+  const commit = await ghCall("/git/commits", { method: "POST", body: JSON.stringify({ message: "Données du poulailler", tree: tree.sha, parents: [] }) });
+  await ghCall("/git/refs", { method: "POST", body: JSON.stringify({ ref: "refs/heads/" + GH.branch, sha: commit.sha }) });
+  gh.sha = {};
+  log("partage : branche « donnees » créée");
+}
+async function ghPut(path, bytes, message) {
+  const body = sha => JSON.stringify({ message, branch: GH.branch, content: toB64(bytes), ...(sha ? { sha } : {}) });
+  try {
+    const r = await ghCall(`/contents/${path}`, { method: "PUT", body: body(gh.sha[path]) });
+    gh.sha[path] = r.content.sha;
+  } catch (e) {
+    if (!/GitHub (409|422)/.test(e.message)) throw e;
+    // Empreinte inconnue ou périmée : on la relit puis on réessaie une fois.
+    const cur = await ghCall(`/contents/${path}?ref=${GH.branch}`, { allow404: true });
+    const r = await ghCall(`/contents/${path}`, { method: "PUT", body: body(cur && cur.sha) });
+    gh.sha[path] = r.content.sha;
+  }
+}
+let pushing = false;
+async function ghPush(force) {
+  if (!ghToken() || pushing) return;
+  if (!force && raw.length === gh.up && Date.now() - gh.at < 10 * 60000) return;   // rien de neuf, état envoyé il y a moins de 10 min
+  pushing = true; $("ghPush").disabled = true;
+  try {
+    await ghEnsureBranch();
+    const first = Math.floor(Math.min(gh.up, raw.length) / CHUNK_BYTES), last = Math.floor(Math.max(0, raw.length - 1) / CHUNK_BYTES);
+    const n = (raw.length - gh.up) / 16;
+    if (raw.length > gh.up) for (let k = first; k <= last; k++)
+      await ghPut(`mesures/${k}.bin`, raw.subarray(k * CHUNK_BYTES, Math.min(raw.length, (k + 1) * CHUNK_BYTES)), `mesures : +${n}`);
+    gh.up = raw.length;
+    const meta = { version: 1, updatedAt: Date.now(), bytes: raw.length, chunkBytes: CHUNK_BYTES, state, stateAt, info, curve, syncedAt: store.syncedAt };
+    await ghPut("meta.json", enc.encode(JSON.stringify(meta)), "état");
+    gh.at = Date.now(); saveGh();
+    log(`partage : ${n > 0 ? n + " mesure(s) et " : ""}état envoyés sur GitHub`);
+    renderGh();
+  } catch (e) {
+    saveGh();
+    log("ERREUR partage : " + errText(e));
+    $("ghInfo").textContent = "Envoi impossible : " + errText(e);
+  } finally { pushing = false; $("ghPush").disabled = !ghToken(); }
+}
+
+// Appareil sans jeton : on relit les données partagées (seulement les fichiers nouveaux).
+let remoteAt = 0;
+async function loadRemote() {
+  if (ghToken() || live) return;
+  try {
+    const meta = await (await fetch(GH.raw + "meta.json?t=" + Date.now(), { cache: "no-store" })).json();
+    const parts = [], from = Math.floor(Math.min(raw.length, meta.bytes) / meta.chunkBytes);
+    for (let k = from; k * meta.chunkBytes < meta.bytes; k++) {
+      const r = await fetch(GH.raw + `mesures/${k}.bin?t=` + Date.now(), { cache: "no-store" });
+      if (!r.ok) throw new Error(`mesures/${k}.bin : ${r.status}`);
+      parts.push(new Uint8Array(await r.arrayBuffer()));
+    }
+    const keep = raw.subarray(0, from * meta.chunkBytes), merged = new Uint8Array(keep.length + parts.reduce((a, p) => a + p.length, 0));
+    merged.set(keep); let o = keep.length; for (const p of parts) { merged.set(p, o); o += p.length; }
+    raw = merged; store.syncedAt = meta.syncedAt || meta.updatedAt; histCache = null; saveStore();
+    curve = meta.curve || curve;
+    if (meta.state) showState(meta.state, meta.stateAt);
+    if (meta.info) showInfo(meta.info);
+    remoteAt = meta.updatedAt;
+    markStale(meta.updatedAt);
+    renderHist(); drawChart(); renderGh();
+    $("reload").disabled = false;
+    if (!device) setStatus(`Consultation : données envoyées par le téléphone ${dayLabel(new Date(meta.updatedAt))} à ${hhmm(new Date(meta.updatedAt))}.`);
+  } catch (e) {
+    $("ghInfo").textContent = "Pas de données partagées lisibles : " + errText(e);
+  }
+}
+function renderGh() {
+  const t = ghToken();
+  $("ghState").textContent = t ? "Jeton enregistré : ce téléphone envoie les données." : "Aucun jeton : cet appareil lit les données partagées.";
+  $("ghPush").disabled = !t;
+  if (t && gh.at) $("ghInfo").textContent = `Dernier envoi : ${dayLabel(new Date(gh.at))} à ${hhmm(new Date(gh.at))} (${gh.up / 16} mesures en ligne).`;
+  else if (!t && remoteAt) $("ghInfo").textContent = `Données du téléphone : ${dayLabel(new Date(remoteAt))} à ${hhmm(new Date(remoteAt))}. Relu toutes les 5 minutes.`;
+}
+
 let syncing = false;
 async function syncLog() {
   if (!ch.log || syncing) return;
@@ -809,6 +927,7 @@ async function syncLog() {
     $("sync").disabled = !ch.log;
     renderHist();
     drawChart();
+    ghPush();
   }
 }
 
@@ -1084,7 +1203,7 @@ $("logCopy").addEventListener("click", async () => {
 $("otaStop").addEventListener("click", () => { otaStop = true; });
 
 $("connect").addEventListener("click", connect);
-$("reload").addEventListener("click", async () => { await refresh(); syncLog(); });
+$("reload").addEventListener("click", async () => { if (!live) return loadRemote(); await refresh(); syncLog(); });
 $("sync").addEventListener("click", syncLog);
 $("eveAll").addEventListener("click", () => {
   const min = info ? info.cfg.eh : "?";
@@ -1149,7 +1268,22 @@ loadStore();
 loadCache();
 renderHist();
 drawChart();
+renderGh();
+if (!navigator.bluetooth) document.body.classList.add("nobt");   // Mac (Safari) : consultation seulement
+$("ghSave").addEventListener("click", () => {
+  const v = $("ghToken").value.trim();
+  if (!v && ghToken() && !confirm("Effacer le jeton ? Ce téléphone n'enverra plus les données.")) return;
+  try { if (v) localStorage.setItem("poulailler-gh-jeton", v); else localStorage.removeItem("poulailler-gh-jeton"); } catch {}
+  $("ghToken").value = "";
+  log(v ? "partage : jeton enregistré" : "partage : jeton effacé");
+  renderGh();
+  if (v) ghPush(true); else loadRemote();
+});
+$("ghPush").addEventListener("click", () => ghPush(true));
 autoConnect();
+// Sans jeton (le Mac) : données partagées au chargement, puis toutes les 5 minutes.
+loadRemote();
+setInterval(loadRemote, 5 * 60000);
 </script>
 </body>
 </html>
