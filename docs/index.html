@@ -532,7 +532,7 @@ async function refresh() {
 
 // Connexion. La première fois : choix de l'appareil et code (requestDevice).
 // Ensuite : reconnexion automatique quand la page est ouverte et la carte à portée.
-let device = null, connecting = false, retryTimer = null, retryDelay = 2000;
+let device = null, connecting = false, retryTimer = null, retryDelay = 2000, searchSince = Date.now();
 // Erreur telle que le navigateur la donne : type, nom, message, code éventuel.
 const errText = e => {
   if (e === null || e === undefined) return `valeur ${e}`;
@@ -573,11 +573,14 @@ async function attach(dev) {
     await ch.state.startNotifications();
     step = "lecture de l'état";           // déclenche l'appairage avec code la première fois
     live = true; markStale();
-    showState(JSON.parse(dec.decode(await ch.state.readValue())));
+    const first = dec.decode(await ch.state.readValue());
+    if (!first.startsWith("{")) throw new Error("l'état reçu n'est pas du JSON : l'iPhone garde en mémoire l'ancienne liste des fonctions de la carte. Réglages > Bluetooth > Poulailler > Oublier cet appareil, puis Se connecter");
+    showState(JSON.parse(first));
     await send("time " + Math.floor(Date.now() / 1000), true);
     await refresh();
     enable(true);
     retryDelay = 2000;
+    searchSince = Infinity;
     setLink("ok", "connecté");
     log("connecté" + (ch.log ? "" : ", sans journal longue durée"));
     if (!ch.log && info && info.lg) log("la carte a un journal mais l'iPhone ne le voit pas : Réglages > Bluetooth > Poulailler > Oublier cet appareil, puis reconnecte-toi");
@@ -587,8 +590,17 @@ async function attach(dev) {
     $("connect").textContent = "Connecté";
   } catch (e) {
     live = false;
-    setLink("", "hors de portée");
-    setStatus("Pas de connexion, étape " + step + " (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
+    // Bluefy répond « 2 » tant qu'il n'a pas revu la carte (quelques secondes après
+    // l'ouverture de la page, ou carte hors de portée) : on patiente sans alarmer.
+    const notSeen = e === 2 && step.startsWith("gatt.connect");
+    if (notSeen && Date.now() - searchSince < 30000) {
+      log("connexion : carte pas encore trouvée par Bluefy (valeur brute 2), nouvel essai");
+      setLink("wait", "recherche…");
+      setStatus("Recherche de la carte…");
+    } else {
+      setLink("", "hors de portée");
+      setStatus("Pas de connexion, étape " + step + " (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
+    }
     scheduleRetry();
   } finally {
     connecting = false;
@@ -615,6 +627,7 @@ function adopt(dev) {
     setStatus("Déconnecté, reconnexion automatique…", true);
     $("connect").textContent = "Se reconnecter";
     retryDelay = 2000;
+    searchSince = Date.now();
     scheduleRetry();
   });
 }
@@ -629,6 +642,7 @@ async function connect() {
     setStatus("Recherche du poulailler…");
     const dev = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
     adopt(dev);
+    searchSince = Date.now();
     await attach(dev);
   } catch (e) {
     setStatus("Échec : " + errText(e), true);
@@ -648,7 +662,7 @@ async function autoConnect() {
 // et la nouvelle page la réutilise (la carte accepte plusieurs téléphones).
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && device && !device.gatt.connected) { retryDelay = 2000; attach(device); }
+  if (document.visibilityState === "visible" && device && !device.gatt.connected) { retryDelay = 2000; searchSince = Date.now(); attach(device); }
 });
 
 async function send(cmd, quiet) {

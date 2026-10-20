@@ -151,6 +151,10 @@ namespace BleControl {
     // 6 caractéristiques, dont une avec descripteur : il faut plus de place que les 15 handles par défaut.
     BLEService* service = server->createService(BLEUUID(SERVICE_UUID), 24);
 
+    // L'iPhone garde en mémoire la position de chaque caractéristique. Toute nouvelle
+    // caractéristique doit être créée APRÈS les autres (à la fin de cette liste) :
+    // sinon les anciennes changent de place et l'iPhone lit au mauvais endroit
+    // jusqu'à « Oublier cet appareil ».
     BLECharacteristic* cmd = service->createCharacteristic(
         CMD_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
     cmd->setCallbacks(new CmdCallbacks());
