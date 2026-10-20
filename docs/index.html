@@ -267,7 +267,9 @@ function showInfo(j) {
 }
 
 function parseCurve(dv) {
-  const last = dv.getUint32(0, true), period = dv.getUint16(4, true), count = dv.getUint16(6, true);
+  if (dv.byteLength < 8) return [];   // carte qui vient de démarrer : pas encore de courbe
+  const last = dv.getUint32(0, true), period = dv.getUint16(4, true);
+  const count = Math.min(dv.getUint16(6, true), (dv.byteLength - 8) >> 1);
   const pts = [];
   for (let i = 0; i < count; i++) {
     const w = dv.getUint16(8 + 2 * i, true);
@@ -319,7 +321,8 @@ function drawChart() {
 async function readInfo() { showInfo(JSON.parse(dec.decode(await ch.info.readValue()))); }
 async function readCurve() { curve = parseCurve(await ch.curve.readValue()); drawChart(); saveCache(); }
 async function refresh() {
-  try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + errText(e), true); }
+  try { await readCurve(); } catch (e) { setStatus("Lecture de la courbe impossible : " + errText(e), true); }
+  try { await readInfo(); } catch (e) { setStatus("Lecture des infos impossible : " + errText(e), true); }
 }
 
 // Connexion. La première fois : choix de l'appareil et code (requestDevice).
@@ -344,10 +347,15 @@ async function attach(dev) {
   connecting = true;
   clearTimeout(retryTimer);
   setLink("wait", "connexion…");
+  let step = "début";
   log("connexion à " + (dev.name || dev.id) + "…");
   try {
-    try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch {}   // repart d'une liaison propre
-    const svc = await (await dev.gatt.connect()).getPrimaryService(SERVICE);
+    // Bluefy peut garder la liaison d'une page précédente : on la réutilise telle quelle.
+    step = dev.gatt.connected ? "gatt.connect (liaison déjà ouverte)" : "gatt.connect";
+    const server = await dev.gatt.connect();
+    step = "getPrimaryService";
+    const svc = await server.getPrimaryService(SERVICE);
+    step = "getCharacteristic";
     ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
            info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
     try { ch.ota = await svc.getCharacteristic(OTA); } catch { ch.ota = null; }   // programme sans mise à jour Bluetooth
@@ -355,7 +363,9 @@ async function attach(dev) {
       try { showState(JSON.parse(dec.decode(e.target.value))); }
       catch { try { showState(JSON.parse(dec.decode(await ch.state.readValue()))); } catch {} }
     });
-    await ch.state.startNotifications();           // déclenche l'appairage avec code la première fois
+    step = "startNotifications (appairage)";
+    await ch.state.startNotifications();
+    step = "lecture de l'état";           // déclenche l'appairage avec code la première fois
     live = true; markStale();
     showState(JSON.parse(dec.decode(await ch.state.readValue())));
     await send("time " + Math.floor(Date.now() / 1000), true);
@@ -369,7 +379,7 @@ async function attach(dev) {
   } catch (e) {
     live = false;
     setLink("", "hors de portée");
-    setStatus("Pas de connexion (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
+    setStatus("Pas de connexion, étape " + step + " (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
     scheduleRetry();
   } finally {
     connecting = false;
@@ -425,8 +435,8 @@ async function autoConnect() {
   } catch {}
 }
 
-// En quittant la page, on libère la carte : elle n'accepte qu'un téléphone à la fois.
-window.addEventListener("pagehide", () => { try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch {} });
+// Pas de déconnexion en quittant la page : au rechargement, Bluefy garde la liaison
+// et la nouvelle page la réutilise (la carte accepte plusieurs téléphones).
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && device && !device.gatt.connected) { retryDelay = 2000; attach(device); }
