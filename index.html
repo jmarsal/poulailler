@@ -130,12 +130,24 @@
     <dl class="facts" id="health"><dt>État</dt><dd>?</dd></dl>
   </div>
 
+  <div class="card">
+    <h2>Mise à jour du programme</h2>
+    <p class="note">Choisis le fichier <b>firmware.bin</b> (sur le Mac : .pio/build/esp32c3/firmware.bin, envoyé sur l'iPhone par AirDrop). Garde l'écran allumé et reste près du poulailler pendant l'envoi, deux à quatre minutes. Si l'envoi est interrompu, la carte garde son programme actuel.</p>
+    <input type="file" id="fw" accept=".bin,application/octet-stream" disabled>
+    <div class="btns">
+      <button id="otaGo" class="primary" disabled>Envoyer</button>
+      <button id="otaStop" disabled>Annuler</button>
+    </div>
+    <progress id="otaBar" max="100" value="0" style="width:100%;margin-top:12px;display:none"></progress>
+    <div id="otaInfo" class="note"></div>
+  </div>
+
   <p class="note">Un allumage manuel s'éteint de lui-même au bout de 15 minutes. À la première connexion, l'iPhone demande le code à 6 chiffres du fichier secrets.h.</p>
 </main>
 
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
-const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5);
+const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6);
 const PHASES = ["attente du jour", "jour", "soirée", "nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -143,7 +155,10 @@ const dec = new TextDecoder(), enc = new TextEncoder();
 let ch = {}, state = null, stateAt = 0, info = null, curve = null, lastMsgSeen = -1;
 
 function setStatus(text, err) { const s = $("status"); s.textContent = text; s.className = err ? "err" : ""; }
-function enable(on) { document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on); }
+function enable(on) {
+  document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on);
+  $("fw").disabled = !on || !ch.ota; $("otaGo").disabled = !on || !ch.ota;
+}
 const pad = n => String(n).padStart(2, "0");
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 function dayLabel(d) {
@@ -261,6 +276,7 @@ async function connect() {
     const svc = await (await device.gatt.connect()).getPrimaryService(SERVICE);
     ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
            info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
+    try { ch.ota = await svc.getCharacteristic(OTA); } catch { ch.ota = null; }   // programme sans mise à jour Bluetooth
     ch.state.addEventListener("characteristicvaluechanged", async e => {
       try { showState(JSON.parse(dec.decode(e.target.value))); }
       catch { try { showState(JSON.parse(dec.decode(await ch.state.readValue()))); } catch {} }
@@ -300,6 +316,56 @@ async function save() {
   await readInfo();
   drawChart();
 }
+
+// Mise à jour du programme : « ota begin », morceaux de 180 octets, « ota end ».
+let otaStop = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function freshState() { const s = JSON.parse(dec.decode(await ch.state.readValue())); showState(s); return s; }
+// Attend un nouveau message de la carte (compteur n différent de n0) commençant par `prefix`.
+async function waitMsg(prefix, ms, n0) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { const s = await freshState(); if (s.n !== n0 && s.m && s.m.startsWith(prefix)) return s.m; await sleep(300); }
+  return null;
+}
+async function otaSend() {
+  const file = $("fw").files[0];
+  if (!file) { $("otaInfo").textContent = "Choisis d'abord le fichier firmware.bin."; return; }
+  const data = new Uint8Array(await file.arrayBuffer());
+  if (data[0] !== 0xE9 || data.length > 1310720) { $("otaInfo").textContent = "Ce fichier n'est pas un programme ESP32 valide."; return; }
+  if (!confirm(`Envoyer ${file.name} (${Math.round(data.length / 1024)} ko) à la carte ?`)) return;
+  otaStop = false;
+  $("otaGo").disabled = true; $("otaStop").disabled = false;
+  const bar = $("otaBar"); bar.style.display = "block"; bar.value = 0;
+  try {
+    let n0 = state ? state.n : -1;
+    await send("ota begin " + data.length, true);
+    const ready = await waitMsg("mise à jour", 5000, n0);
+    if (!ready || !ready.includes("prête")) throw new Error(ready || "la carte ne répond pas");
+    const CHUNK = 180, t0 = Date.now();
+    for (let i = 0; i < data.length; i += CHUNK) {
+      if (otaStop) { await send("ota abort", true); throw new Error("annulée"); }
+      await ch.ota.writeValue(data.slice(i, i + CHUNK));
+      if ((i / CHUNK) % 20 === 0) {
+        const done = i + CHUNK, rate = done / ((Date.now() - t0) / 1000);
+        bar.value = Math.round(100 * done / data.length);
+        $("otaInfo").textContent = `${bar.value} %, encore environ ${Math.max(0, Math.round((data.length - done) / rate))} s`;
+      }
+    }
+    bar.value = 100;
+    $("otaInfo").textContent = "Vérification par la carte…";
+    n0 = state ? state.n : -1;
+    await send("ota end", true);
+    const res = await waitMsg("mise à jour", 8000, n0).catch(() => "mise à jour réussie, redémarrage");
+    if (res && res.includes("réussie")) $("otaInfo").textContent = "Réussi. La carte redémarre : reconnecte-toi dans une dizaine de secondes, puis vérifie la version dans « Santé de la carte ».";
+    else throw new Error(res || "pas de réponse");
+  } catch (e) {
+    $("otaInfo").textContent = "Mise à jour non faite : " + e.message + ". La carte garde son programme actuel.";
+  } finally {
+    $("otaStop").disabled = true; $("otaGo").disabled = !ch.ota;
+  }
+}
+$("otaGo").addEventListener("click", otaSend);
+$("otaStop").addEventListener("click", () => { otaStop = true; });
 
 $("connect").addEventListener("click", connect);
 $("reload").addEventListener("click", refresh);
