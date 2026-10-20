@@ -59,6 +59,7 @@
   <div class="card">
     <button id="connect" class="primary wide">Se connecter</button>
     <div id="status">Non connecté.</div>
+    <div id="stale" class="note" hidden></div>
   </div>
 
   <div class="card">
@@ -179,8 +180,33 @@ function duration(sec) {
 function uptimeNow() { return state ? state.u + (Date.now() - stateAt) / 1000 : 0; }
 function toDate(up) { return new Date(Date.now() - (uptimeNow() - up) * 1000); }
 
-function showState(s) {
-  state = s; stateAt = Date.now();
+// Dernières valeurs reçues, gardées dans le navigateur pour les revoir hors de portée.
+const CACHE = "poulailler-cache-v1";
+let live = false;   // true quand les valeurs affichées viennent d'une connexion en cours
+function saveCache() {
+  try { localStorage.setItem(CACHE, JSON.stringify({ state, stateAt, info, curve, savedAt: Date.now() })); } catch {}
+}
+function loadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE) || "null");
+    if (!c || !c.state) return;
+    showState(c.state, c.stateAt);
+    if (c.curve) curve = c.curve;
+    if (c.info) showInfo(c.info);
+    markStale(c.savedAt);
+  } catch {}
+}
+function markStale(at) {
+  const el = $("stale");
+  if (live || !at) { el.hidden = true; return; }
+  const d = new Date(at);
+  el.hidden = false;
+  el.textContent = `Dernières valeurs connues : ${dayLabel(d)} à ${hhmm(d)}. Elles se mettront à jour à la connexion.`;
+}
+
+function showState(s, at) {
+  state = s; stateAt = at || Date.now();
+  if (live) saveCache();
   $("fPhase").textContent = PHASES[s.p] ?? "?";
   $("fLum").textContent = `${s.r} (lissée ${s.s})`;
   $("fClock").textContent = s.c || "pas encore réglée";
@@ -211,6 +237,7 @@ function showInfo(j) {
   });
   $("journal").innerHTML = items.length ? items.join("") : '<li class="note">Pas encore de soirée depuis le démarrage.</li>';
   drawChart();
+  if (live) saveCache();
 }
 
 function parseCurve(dv) {
@@ -264,7 +291,7 @@ function drawChart() {
 }
 
 async function readInfo() { showInfo(JSON.parse(dec.decode(await ch.info.readValue()))); }
-async function readCurve() { curve = parseCurve(await ch.curve.readValue()); drawChart(); }
+async function readCurve() { curve = parseCurve(await ch.curve.readValue()); drawChart(); saveCache(); }
 async function refresh() {
   try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + e.message, true); }
 }
@@ -292,6 +319,7 @@ async function attach(dev) {
       catch { try { showState(JSON.parse(dec.decode(await ch.state.readValue()))); } catch {} }
     });
     await ch.state.startNotifications();           // déclenche l'appairage avec code la première fois
+    live = true; markStale();
     showState(JSON.parse(dec.decode(await ch.state.readValue())));
     await send("time " + Math.floor(Date.now() / 1000), true);
     await refresh();
@@ -301,6 +329,7 @@ async function attach(dev) {
     setStatus("Connecté.");
     $("connect").textContent = "Connecté";
   } catch (e) {
+    live = false;
     setLink("", "hors de portée");
     setStatus("Pas de connexion : " + e.message, true);
     scheduleRetry();
@@ -322,6 +351,7 @@ function adopt(dev) {
   device = dev;
   dev.addEventListener("gattserverdisconnected", () => {
     enable(false);
+    live = false; markStale(Date.now());
     setLink("", "déconnecté");
     setStatus("Déconnecté, reconnexion automatique…", true);
     $("connect").textContent = "Se reconnecter";
@@ -442,6 +472,7 @@ $("defaults").addEventListener("click", async () => {
 });
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
 setInterval(() => { if (state && curve) drawChart(); }, 60000);
+loadCache();
 autoConnect();
 </script>
 </body>
