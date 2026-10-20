@@ -7,35 +7,136 @@
 <title>Poulailler</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%20%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%231f2a44%22/%3E%20%3Ccircle%20cx%3D%2248%22%20cy%3D%2215%22%20r%3D%227%22%20fill%3D%22%23f4d58a%22/%3E%20%3Ccircle%20cx%3D%2251%22%20cy%3D%2212.5%22%20r%3D%226%22%20fill%3D%22%231f2a44%22/%3E%20%3Ccircle%20cx%3D%2216%22%20cy%3D%2212%22%20r%3D%221.2%22%20fill%3D%22%23f4d58a%22%20opacity%3D%22.8%22/%3E%20%3Ccircle%20cx%3D%2226%22%20cy%3D%228%22%20r%3D%221%22%20fill%3D%22%23f4d58a%22%20opacity%3D%22.6%22/%3E%20%3Cpath%20d%3D%22M10%2033%20L32%2015%20L54%2033%20Z%22%20fill%3D%22%23c4621d%22/%3E%20%3Crect%20x%3D%2215%22%20y%3D%2231%22%20width%3D%2234%22%20height%3D%2223%22%20rx%3D%221.5%22%20fill%3D%22%23e9dcc3%22/%3E%20%3Crect%20x%3D%2226%22%20y%3D%2237%22%20width%3D%2212%22%20height%3D%2217%22%20rx%3D%226%22%20ry%3D%226%22%20fill%3D%22%23f0b453%22/%3E%20%3Crect%20x%3D%2226%22%20y%3D%2245%22%20width%3D%2212%22%20height%3D%229%22%20fill%3D%22%23f0b453%22/%3E%20%3Cpath%20d%3D%22M8%2054%20H56%22%20stroke%3D%22%237a5a2e%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22/%3E%20%3Cellipse%20cx%3D%2232%22%20cy%3D%2255%22%20rx%3D%2214%22%20ry%3D%223%22%20fill%3D%22%23f0b453%22%20opacity%3D%22.35%22/%3E%20%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
-<meta name="theme-color" content="#1f2a44">
+<meta name="theme-color" content="#eef1ec">
 <style>
-  :root{--bg:#f4f1ea;--card:#fffdf8;--ink:#2a2620;--muted:#7a7266;--line:#e3ddd0;--accent:#c4621d;--on:#e9a23b;--dusk:#c4621d;--day:#3b6fb6;--warn:#b3422e;--curve:#2a2620}
-  @media (prefers-color-scheme: dark){:root{--bg:#1b1916;--card:#25221e;--ink:#f1ece2;--muted:#a59c8e;--line:#3a352e;--accent:#e08a46;--on:#f0b453;--dusk:#e08a46;--day:#7ea6e0;--warn:#e07a66;--curve:#f1ece2}}
+  /* Jour : ciel pâle et vert de haie. Nuit : bleu de nuit, pour ne pas s'éblouir dehors le soir.
+     Jaune d'œuf : réservé à ce qui est allumé. */
+  :root{
+    --bg:#eef1ec; --card:#ffffff; --ink:#1e2a24; --muted:#617068; --line:#d9e0da; --soft:#f4f6f3;
+    --primary:#2f5d46; --on-primary:#ffffff; --on:#e8a317; --on-ink:#3b2a00;
+    --dusk:#cf6a35; --day:#3e7cb1; --warn:#b3422e; --ok:#2e9a58; --curve:#1e2a24;
+    --sky-a:#bcd7ec; --sky-b:#f4e7c2; --sky-ink:#1e2a24;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0f1820; --card:#16222c; --ink:#e6edf1; --muted:#8fa1ae; --line:#26343f; --soft:#1c2a35;
+    --primary:#77b896; --on-primary:#0f1820; --on:#f2b43c; --on-ink:#2a1d00;
+    --dusk:#e58a57; --day:#7fb0dc; --warn:#ec8a76; --ok:#5cc485; --curve:#e6edf1;
+    --sky-a:#1b2d44; --sky-b:#2b3f5c; --sky-ink:#e6edf1;
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1820; --card:#16222c; --ink:#e6edf1; --muted:#8fa1ae; --line:#26343f; --soft:#1c2a35;
+      --primary:#77b896; --on-primary:#0f1820; --on:#f2b43c; --on-ink:#2a1d00;
+      --dusk:#e58a57; --day:#7fb0dc; --warn:#ec8a76; --ok:#5cc485; --curve:#e6edf1;
+      --sky-a:#1b2d44; --sky-b:#2b3f5c; --sky-ink:#e6edf1;
+      color-scheme:dark;
+    }
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}
-  main{max-width:520px;margin:0 auto}
-  h1{font-size:26px;margin:4px 0 2px}
-  h2{font-size:17px;margin:0 0 10px}
-  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
-  .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
-  .title{font-weight:600;font-size:18px}
-  .meta{color:var(--muted);font-size:14px;text-align:right}
-  .bulb{width:14px;height:14px;border-radius:50%;background:var(--line);display:inline-block;margin-right:8px;vertical-align:-1px}
-  .bulb.on{background:var(--on);box-shadow:0 0 12px var(--on)}
-  .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 10px;background:var(--line);color:var(--ink);cursor:pointer}
-  button.primary{background:var(--accent);color:#fff}
-  button.small{padding:8px 12px;font-size:14px}
-  button:disabled{opacity:.45}
-  button.wide{width:100%}
-  #status{font-size:14px;color:var(--muted);margin-top:10px;min-height:1.4em}
-  #status.err{color:var(--warn)}
-  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
-  .facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+       padding:max(12px,env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom))}
+  main{max-width:560px;margin:0 auto}
+  h2{font-size:17px;margin:0 0 10px;letter-spacing:-.01em}
+  h3{font-size:15px;margin:18px 0 8px;color:var(--muted);font-weight:600}
+  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:13px 10px;background:var(--soft);color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+  button:active{transform:scale(.98)}
+  button.primary{background:var(--primary);color:var(--on-primary)}
+  button.small{padding:7px 12px;font-size:14px;border-radius:10px}
+  button:disabled{opacity:.4}
+  button:focus-visible,input:focus-visible{outline:3px solid var(--day);outline-offset:2px}
   .note{font-size:13px;color:var(--muted)}
-  #log{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;background:var(--bg);border-radius:10px;padding:10px;margin:10px 0 0}
+  .card{background:var(--card);border-radius:18px;padding:16px;margin-bottom:12px;border:1px solid var(--line)}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .row > span{display:flex;gap:6px;flex:none}
+  .row button{white-space:nowrap}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+
+  /* En-tête : nom, état de la liaison, thème */
+  .top{max-width:560px;margin:0 auto 10px;display:flex;align-items:center;gap:10px}
+  .top h1{font-size:24px;margin:0;flex:1;letter-spacing:-.02em}
+  .link{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:5px 10px 5px 8px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+  .link.ok .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+  .link.wait .dot{background:var(--on);animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  @media (prefers-reduced-motion: reduce){.link.wait .dot{animation:none}}
+  .iconbtn{background:var(--card);border:1px solid var(--line);border-radius:99px;width:36px;height:36px;padding:0;display:grid;place-items:center}
+  .iconbtn svg{width:18px;height:18px}
+
+  /* Bandeau de connexion : visible seulement hors liaison */
+  .connect{max-width:560px;margin:0 auto 12px}
+  .connect button{width:100%}
+  body.live .connect button{display:none}
+  #status{font-size:14px;color:var(--muted);margin-top:8px;min-height:1.3em}
+  body.live #status{margin-top:0}
+  body.live #status:not(.err){display:none}
+  #status.err{color:var(--warn)}
+
+  /* Le ciel : la phase en cours, l'élément qu'on voit d'abord */
+  .sky{border-radius:22px;padding:18px 18px 16px;margin-bottom:12px;color:var(--sky-ink);
+       background:linear-gradient(170deg,var(--sky-a),var(--sky-b));position:relative;overflow:hidden}
+  .sky[data-p="1"]{--sky-a:#9fcbec;--sky-b:#e9f2d9;--sky-ink:#18324a}
+  .sky[data-p="2"]{--sky-a:#3f4f86;--sky-b:#e7905a;--sky-ink:#fff8ec}
+  .sky[data-p="3"]{--sky-a:#0d1530;--sky-b:#22325a;--sky-ink:#e9eefb}
+  .sky[data-p="0"]{--sky-a:#5d6a86;--sky-b:#c9b8a0;--sky-ink:#fbf7f0}
+  .sky .icon{position:absolute;right:14px;top:12px;width:64px;height:64px;opacity:.95}
+  .sky .phase{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:2px 0 6px;padding-right:72px}
+  .sky .what{font-size:15px;opacity:.92;padding-right:76px;min-height:2.6em}
+  .sky dl{display:flex;gap:18px;margin:14px 0 0;font-size:13px}
+  .sky dt{opacity:.75} .sky dd{margin:0;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+  #stale{margin:-4px 2px 12px}
+
+  /* Les deux rubans */
+  .lights{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .light{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .light .name{font-weight:700;font-size:17px;display:flex;align-items:center;gap:8px}
+  .bulb{width:14px;height:14px;border-radius:50%;background:var(--line);flex:none}
+  .light.on{background:var(--on);border-color:var(--on);color:var(--on-ink)}
+  .light.on .bulb{background:#fff7d6;box-shadow:0 0 14px #fff2b0}
+  .light.on .meta{color:var(--on-ink)}
+  .light .meta{font-size:14px;color:var(--muted);min-height:1.4em}
+  .light .pair{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .light .pair button{padding:10px 4px;font-size:14px}
+  .light.on .pair button{background:rgba(255,255,255,.55);color:var(--on-ink)}
+  .wide{width:100%}
+
+  /* Courbes */
   svg{display:block;width:100%;height:auto;touch-action:none}
+  .seg{display:flex;gap:4px;background:var(--soft);border-radius:12px;padding:3px;margin:0 0 10px}
+  .seg button{flex:1;padding:7px 0;font-size:14px;background:transparent;border-radius:9px}
+  .seg button.sel{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  #chartInfo,#miniInfo{font-size:14px;color:var(--muted);min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:15px;margin:0}
+  .facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
+  ul.journal{list-style:none;padding:0;margin:0;font-size:15px}
+  ul.journal li{padding:8px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  ul.journal li:last-child{border-bottom:0}
+
+  /* Réglages */
+  .form{display:grid;grid-template-columns:1fr auto;gap:10px 12px;align-items:center}
+  .form label{font-size:15px}
+  .form label small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+  .form input{font:inherit;width:92px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);text-align:right}
+  .unit{color:var(--muted);font-size:13px;margin-left:4px}
+  .savebar{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom));z-index:2}
+
+  /* Journal technique */
+  #log{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;background:var(--soft);border-radius:10px;padding:10px;margin:10px 0 0}
+
+  /* Onglets en bas, au pouce */
+  .tab{display:none} .tab.show{display:block}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--card);border-top:1px solid var(--line);
+          display:grid;grid-template-columns:repeat(4,1fr);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+  .tabbar button{background:none;padding:6px 0 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);border-radius:10px}
+  .tabbar svg{width:24px;height:24px}
+  .tabbar button[aria-selected="true"]{color:var(--primary)}
+
+  /* Plein écran */
   #full{position:fixed;inset:0;z-index:10;background:var(--card);display:flex;flex-direction:column;padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
   #full[hidden]{display:none}
   .fullbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
@@ -45,154 +146,169 @@
   .fullplot{flex:1;min-height:0}
   .fullplot svg{width:100%;height:100%}
   #fullInfo{min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
-  #chartInfo{font-size:14px;color:var(--muted);min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
-  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
-  .form{display:grid;grid-template-columns:1fr auto;gap:10px 12px;align-items:center}
-  .form label{font-size:15px}
-  .form input{font:inherit;width:96px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-align:right}
-  .link{font-size:14px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
-  .dot{width:12px;height:12px;border-radius:50%;background:var(--line)}
-  .link.ok .dot{background:#3fae5a;box-shadow:0 0 8px #3fae5a}
-  .link.wait .dot{background:var(--on);animation:pulse 1.2s infinite}
-  @keyframes pulse{50%{opacity:.35}}
-  .seg{display:flex;gap:6px;margin:0 0 10px}
-  .seg button{flex:1;padding:8px 0;font-size:14px;background:var(--bg);border:1px solid var(--line)}
-  .seg button.sel{background:var(--ink);color:var(--card);border-color:var(--ink)}
-  ul.journal{list-style:none;padding:0;margin:0;font-size:15px}
-  ul.journal li{padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
-  ul.journal li:last-child{border-bottom:0}
 </style>
 </head>
 <body>
+<header class="top">
+  <h1>Poulailler</h1>
+  <span class="link" id="link"><span class="dot"></span><span id="linkText">déconnecté</span></span>
+  <button class="iconbtn" id="themeBtn" aria-label="Changer de thème"></button>
+</header>
+<div class="connect">
+  <button id="connect" class="primary">Se connecter</button>
+  <div id="status">Non connecté.</div>
+</div>
+
 <main>
-  <div class="row"><h1>Poulailler</h1><span class="link" id="link"><span class="dot"></span><span id="linkText">déconnecté</span></span></div>
-  <p class="sub">Éclairage du soir, commande par Bluetooth</p>
-
-  <div class="card">
-    <button id="connect" class="primary wide">Se connecter</button>
-    <div id="status">Non connecté.</div>
+  <!-- Maintenant -->
+  <section class="tab" id="tab-now">
+    <div class="sky" id="sky" data-p="">
+      <svg class="icon" id="phaseIcon" viewBox="0 0 64 64" aria-hidden="true"></svg>
+      <div class="phase" id="fPhase">En attente</div>
+      <div class="what" id="heroSub">Connecte-toi pour voir l'état du poulailler.</div>
+      <dl>
+        <div><dt>Lumière</dt><dd id="fLum">?</dd></div>
+        <div><dt>Seuil soir</dt><dd id="fDusk">?</dd></div>
+        <div><dt>Heure</dt><dd id="fClock">?</dd></div>
+      </dl>
+    </div>
     <div id="stale" class="note" hidden></div>
-  </div>
 
-  <div class="card">
-    <div class="row">
-      <div><span class="bulb" id="bExt"></span><span class="title">Entrée</span></div>
-      <span class="meta" id="mExt">?</span>
+    <div class="lights">
+      <div class="light" id="tExt">
+        <div class="name"><span class="bulb"></span>Entrée</div>
+        <div class="meta" id="mExt">?</div>
+        <div class="pair"><button data-cmd="ext on" disabled>Allumer</button><button data-cmd="ext off" disabled>Éteindre</button></div>
+      </div>
+      <div class="light" id="tInt">
+        <div class="name"><span class="bulb"></span>Intérieur</div>
+        <div class="meta" id="mInt">?</div>
+        <div class="pair"><button data-cmd="int on" disabled>Allumer</button><button data-cmd="int off" disabled>Éteindre</button></div>
+      </div>
     </div>
-    <div class="btns">
-      <button data-cmd="ext on" disabled>Allumer</button>
-      <button data-cmd="ext off" disabled>Éteindre</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <div><span class="bulb" id="bInt"></span><span class="title">Intérieur</span></div>
-      <span class="meta" id="mInt">?</span>
-    </div>
-    <div class="btns">
-      <button data-cmd="int on" disabled>Allumer</button>
-      <button data-cmd="int off" disabled>Éteindre</button>
-    </div>
-  </div>
-
-  <div class="card">
     <button data-cmd="off" class="wide" disabled>Tout éteindre</button>
-  </div>
+    <p class="note" style="margin:8px 2px 14px">Un allumage à la main s'arrête seul au bout de 15 minutes.</p>
 
-  <div class="card">
-    <h2>Soirée manuelle</h2>
-    <p class="note" style="margin-top:0">Si la porte s'est fermée sans que rien ne s'allume : lance le déroulé normal de la soirée tout de suite (entrée 35 min, intérieur 1 h avec baisse progressive, selon les réglages).</p>
-    <div class="btns">
-      <button id="eveAll" disabled>Lancer la soirée</button>
-      <button id="eveInt" disabled>Intérieur seulement</button>
+    <div class="card">
+      <div class="row"><h2 style="margin:0">Dernières 24 h</h2><button class="small" id="goCurve">Courbe détaillée</button></div>
+      <svg id="mini" viewBox="0 0 340 120" aria-label="Lumière des dernières 24 heures"></svg>
+      <div id="miniInfo">Touche la courbe pour lire une valeur.</div>
     </div>
-  </div>
 
-  <div class="card">
-    <dl class="facts">
-      <dt>Phase</dt><dd id="fPhase">?</dd>
-      <dt>Lumière</dt><dd id="fLum">?</dd>
-      <dt>Heure de la carte</dt><dd id="fClock">?</dd>
-    </dl>
-  </div>
-
-  <div class="card">
-    <div class="row"><h2 id="chartTitle">Lumière des dernières 24 h</h2><span><button class="small" id="fullOpen" aria-label="Plein écran">⤢ Agrandir</button> <button class="small" id="reload" disabled>Actualiser</button></span></div>
-    <div class="seg" id="range">
-      <button data-r="1" class="sel">24 h</button><button data-r="7">7 jours</button><button data-r="30">30 jours</button><button data-r="0">Tout</button>
+    <div class="card">
+      <h2>La porte s'est fermée sans lumière ?</h2>
+      <p class="note" style="margin-top:0">Lance la soirée maintenant, avec les durées des réglages. Avec l'entrée, la porte reste ouverte (ou se rouvre) le temps de l'éclairage.</p>
+      <div class="btns">
+        <button id="eveAll" class="primary" disabled>Lancer la soirée</button>
+        <button id="eveInt" disabled>Intérieur seulement</button>
+      </div>
     </div>
-    <svg id="chart" viewBox="0 0 340 200" aria-label="Courbe de lumière"></svg>
-    <div id="chartInfo">Touche la courbe pour lire une valeur, ou « Agrandir » pour zoomer.</div>
-    <div class="legend">
-      <span><i style="background:var(--curve)"></i>lumière lissée</span>
-      <span><i style="background:var(--dusk)"></i>seuil crépuscule</span>
-      <span><i style="background:var(--day)"></i>seuil jour</span>
-      <span><i style="background:var(--on)"></i>rubans allumés</span>
+  </section>
+
+  <!-- Courbe -->
+  <section class="tab" id="tab-curve">
+    <div class="card">
+      <div class="row"><h2 id="chartTitle" style="margin:0">Dernières 24 h</h2>
+        <span><button class="small" id="reload" disabled>Actualiser</button> <button class="small" id="fullOpen">Agrandir</button></span></div>
+      <div class="seg" id="range" style="margin-top:12px">
+        <button data-r="1" class="sel">24 h</button><button data-r="7">7 jours</button><button data-r="30">30 jours</button><button data-r="0">Tout</button>
+      </div>
+      <svg id="chart" viewBox="0 0 340 210" aria-label="Courbe de lumière"></svg>
+      <div id="chartInfo">Touche la courbe pour lire une valeur. « Agrandir » pour zoomer, en paysage.</div>
+      <div class="legend">
+        <span><i style="background:var(--curve)"></i>lumière lissée</span>
+        <span><i style="background:var(--dusk)"></i>seuil soir</span>
+        <span><i style="background:var(--day)"></i>seuil jour</span>
+        <span><i style="background:var(--on)"></i>rubans allumés</span>
+      </div>
     </div>
-  </div>
 
-  <div class="card">
-    <h2>Dernières soirées</h2>
-    <ul class="journal" id="journal"><li class="note">Pas encore de données.</li></ul>
-  </div>
-
-  <div class="card">
-    <h2>Historique sur ce téléphone</h2>
-    <dl class="facts" id="hist"><dt>Mesures</dt><dd>aucune</dd></dl>
-    <div class="btns">
-      <button id="sync" disabled>Synchroniser</button>
-      <button id="csv">Exporter (CSV)</button>
+    <div class="card">
+      <h2>Dernières soirées</h2>
+      <ul class="journal" id="journal"><li class="note">Pas encore de données.</li></ul>
     </div>
-    <div id="syncInfo" class="note" style="margin-top:8px"></div>
-    <p class="note">La carte garde environ 100 jours de mesures (une toutes les 6 minutes) et ce téléphone en garde une copie, complétée à chaque connexion. Rien n'est effacé sur la carte.</p>
-  </div>
 
-  <div class="card">
-    <h2>Réglages</h2>
-    <div class="form" id="form">
-      <label for="s_dusk">Seuil crépuscule</label><input id="s_dusk" inputmode="numeric">
-      <label for="s_day">Seuil jour</label><input id="s_day" inputmode="numeric">
-      <label for="s_ext_hold">Entrée allumée (min)</label><input id="s_ext_hold" inputmode="numeric">
-      <label for="s_ext_max">Entrée intensité (%)</label><input id="s_ext_max" inputmode="numeric">
-      <label for="s_int_hold">Intérieur plein (min)</label><input id="s_int_hold" inputmode="numeric">
-      <label for="s_int_fade">Intérieur baisse (min)</label><input id="s_int_fade" inputmode="numeric">
-      <label for="s_int_max">Intérieur intensité (%)</label><input id="s_int_max" inputmode="numeric">
+    <div class="card">
+      <h2>Historique sur ce téléphone</h2>
+      <dl class="facts" id="hist"><dt>Mesures</dt><dd>aucune</dd></dl>
+      <div class="btns">
+        <button id="sync" disabled>Synchroniser</button>
+        <button id="csv">Exporter (CSV)</button>
+      </div>
+      <div id="syncInfo" class="note" style="margin-top:8px"></div>
+      <p class="note">La carte garde environ 100 jours de mesures, une toutes les 6 minutes. Ce téléphone en garde une copie, complétée à chaque connexion.</p>
     </div>
-    <div class="btns">
-      <button id="save" class="primary" disabled>Enregistrer</button>
-      <button id="defaults" disabled>Valeurs d'origine</button>
+  </section>
+
+  <!-- Réglages -->
+  <section class="tab" id="tab-settings">
+    <div class="card">
+      <h2>Quand allumer</h2>
+      <div class="form">
+        <label for="s_dusk">Seuil du soir<small>La lumière lue sur la courbe 30 min avant la fermeture de la porte</small></label><input id="s_dusk" inputmode="numeric">
+        <label for="s_day">Seuil du jour<small>Au-dessus, la carte se réarme pour le soir suivant</small></label><input id="s_day" inputmode="numeric">
+      </div>
+      <h3>Entrée</h3>
+      <div class="form">
+        <label for="s_ext_hold">Durée<small>15 min avant la fermeture + 20 min après</small></label><span><input id="s_ext_hold" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_ext_max">Intensité</label><span><input id="s_ext_max" inputmode="numeric"><span class="unit">%</span></span>
+      </div>
+      <h3>Intérieur</h3>
+      <div class="form">
+        <label for="s_int_hold">Pleine lumière</label><span><input id="s_int_hold" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_int_fade">Extinction progressive</label><span><input id="s_int_fade" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_int_max">Intensité</label><span><input id="s_int_max" inputmode="numeric"><span class="unit">%</span></span>
+      </div>
+      <div class="btns">
+        <button id="save" class="primary" disabled>Enregistrer</button>
+        <button id="defaults" disabled>Valeurs d'origine</button>
+      </div>
+      <p class="note">Enregistré dans la carte : gardé après une coupure de courant ou une mise à jour.</p>
     </div>
-    <p class="note">Les seuils se lisent sur la courbe : le seuil crépuscule doit correspondre à la lumière d'environ un quart d'heure avant la fermeture de la porte. Réglages ignorés en mode test.</p>
-  </div>
 
-  <div class="card">
-    <h2>Santé de la carte</h2>
-    <dl class="facts" id="health"><dt>État</dt><dd>?</dd></dl>
-  </div>
-
-  <div class="card">
-    <h2>Mise à jour du programme</h2>
-    <p class="note">Choisis le fichier <b>firmware.bin</b> (sur le Mac : .pio/build/esp32c3/firmware.bin, envoyé sur l'iPhone par AirDrop). Garde l'écran allumé et reste près du poulailler pendant l'envoi, une à quatre minutes. Si l'envoi est interrompu, la carte garde son programme actuel.</p>
-    <input type="file" id="fw" accept=".bin,application/octet-stream" disabled>
-    <div class="btns">
-      <button id="otaGo" class="primary" disabled>Envoyer</button>
-      <button id="otaStop" disabled>Annuler</button>
+    <div class="card">
+      <h2>Affichage</h2>
+      <div class="seg" id="themeSeg" style="margin:0">
+        <button data-t="auto">Automatique</button><button data-t="light">Jour</button><button data-t="dark">Nuit</button>
+      </div>
+      <p class="note" style="margin-bottom:0">Automatique suit le réglage de l'iPhone.</p>
     </div>
-    <progress id="otaBar" max="100" value="0" style="width:100%;margin-top:12px;display:none"></progress>
-    <div id="otaInfo" class="note"></div>
-  </div>
+  </section>
 
-  <div class="card">
-    <div class="row"><h2 style="margin:0">Journal technique</h2>
-      <span><button id="logCopy" class="small">Copier</button> <button id="logClear" class="small">Vider</button></span></div>
-    <p class="note">Erreurs brutes et événements Bluetooth, gardés sur ce téléphone même après rechargement de la page. Utile pour le dépannage : « Copier » puis colle-le à Claude.</p>
-    <pre id="log"></pre>
-  </div>
+  <!-- Carte -->
+  <section class="tab" id="tab-board">
+    <div class="card">
+      <h2>Santé de la carte</h2>
+      <dl class="facts" id="health"><dt>État</dt><dd>?</dd></dl>
+    </div>
 
-  <p class="note">Un allumage manuel s'éteint de lui-même au bout de 15 minutes. À la première connexion, l'iPhone demande le code à 6 chiffres du fichier secrets.h.</p>
+    <div class="card">
+      <h2>Mettre à jour le programme</h2>
+      <p class="note" style="margin-top:0">Choisis le fichier firmware.bin (sur le Mac : .pio/build/esp32c3/firmware.bin, envoyé par AirDrop). Reste près du poulailler, écran allumé, environ 1 min 30. Si l'envoi échoue, la carte garde son programme actuel.</p>
+      <input type="file" id="fw" accept=".bin,application/octet-stream" disabled>
+      <div class="btns">
+        <button id="otaGo" class="primary" disabled>Envoyer</button>
+        <button id="otaStop" disabled>Annuler</button>
+      </div>
+      <progress id="otaBar" max="100" value="0" style="width:100%;margin-top:12px;display:none"></progress>
+      <div id="otaInfo" class="note"></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h2 style="margin:0">Journal technique</h2>
+        <span><button id="logCopy" class="small">Copier</button> <button id="logClear" class="small">Vider</button></span></div>
+      <p class="note">Événements Bluetooth et erreurs brutes, gardés sur ce téléphone. Pour un dépannage : Copier, puis colle-le à Claude.</p>
+      <pre id="log"></pre>
+    </div>
+  </section>
 </main>
+
+<nav class="tabbar" role="tablist">
+  <button role="tab" data-tab="now"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5a2 2 0 0 1 4 0v5"/></svg>Maintenant</button>
+  <button role="tab" data-tab="curve"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M3 16c3 0 3-10 6-10s3 8 6 8 3-5 6-5"/></svg>Courbe</button>
+  <button role="tab" data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</button>
+  <button role="tab" data-tab="board"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>Carte</button>
+</nav>
 
 <div id="full" hidden>
   <div class="fullbar">
@@ -207,13 +323,14 @@
     </span>
   </div>
   <div class="fullplot"><svg id="fullChart" aria-label="Courbe de lumière en grand"></svg></div>
-  <div id="fullInfo" class="note">Toucher : lire une valeur. Glisser : se déplacer (une fois zoomé). Deux doigts : zoomer. Double tap : zoom. Tourne le téléphone pour le mode paysage.</div>
+  <div id="fullInfo" class="note">Toucher : lire une valeur. Glisser : se déplacer (une fois zoomé). Deux doigts : zoomer. Double tap : zoom. Tourne le téléphone pour le paysage.</div>
 </div>
 
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PHASES = ["attente du jour", "jour", "soirée", "nuit"];
+const PAGE_VERSION = "2026-10-20 g";
+const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
 const dec = new TextDecoder(), enc = new TextEncoder();
@@ -280,18 +397,47 @@ function markStale(at) {
   el.textContent = `Dernières valeurs connues : ${dayLabel(d)} à ${hhmm(d)}. Elles se mettront à jour à la connexion.`;
 }
 
+// Icônes de phase : soleil voilé, soleil, coucher, lune.
+const PHASE_ICONS = [
+  '<circle cx="32" cy="34" r="12" fill="currentColor" opacity=".55"/><path d="M8 46h48M14 52h36" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".7"/>',
+  '<circle cx="32" cy="32" r="12" fill="currentColor"/><g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M32 8v6M32 50v6M8 32h6M50 32h6M15 15l4 4M45 45l4 4M15 49l4-4M45 19l4-4"/></g>',
+  '<path d="M14 44a18 18 0 0 1 36 0z" fill="currentColor"/><path d="M6 44h52M14 51h36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>',
+  '<path d="M40 10a22 22 0 1 0 14 34A18 18 0 0 1 40 10z" fill="currentColor"/><circle cx="16" cy="14" r="1.6" fill="currentColor"/><circle cx="24" cy="8" r="1.2" fill="currentColor"/>',
+];
+// Phrase sous la phase : ce qui va se passer ensuite, en clair.
+function updateHero() {
+  if (!state) return;
+  const s = state, cfg = info && info.cfg;
+  $("fDusk").textContent = cfg ? cfg.dusk : "?";
+  let t = "";
+  if (s.p === 0) t = "La carte s'arme après 15 minutes de vrai jour.";
+  else if (s.p === 1) t = cfg ? (s.s > cfg.dusk ? `Allumage quand la lumière passera sous ${cfg.dusk}.` : `Sous le seuil : allumage d'ici quelques minutes s'il reste sombre.`) : "Prête pour ce soir.";
+  else if (s.p === 2) {
+    const cur = info && info.j && info.j.length ? info.j[info.j.length - 1] : null;
+    if (cur && !cur[1] && cfg) {
+      const el = (uptimeNow() - cur[0]) / 60;
+      const ext = Math.max(0, Math.ceil(cfg.eh - el)), int = Math.max(0, Math.ceil(cfg.ih + cfg.if - el));
+      t = `Entrée : ${ext ? `encore ${ext} min` : "éteinte"}. Intérieur : ${int ? `encore ${int} min` : "éteint"}.`;
+    } else t = "Soirée en cours.";
+  } else if (s.p === 3) t = "Soirée terminée. La carte se réarme au prochain jour.";
+  $("heroSub").textContent = t;
+}
+
 let lastN = null;
 function showState(s, at) {
   if (!at && s && s.m && s.n !== lastN) { if (lastN !== null) log("carte : " + s.m); lastN = s.n; }
   state = s; stateAt = at || Date.now();
   if (live) saveCache();
   $("fPhase").textContent = PHASES[s.p] ?? "?";
-  $("fLum").textContent = `${s.r} (lissée ${s.s})`;
-  $("fClock").textContent = s.c || "pas encore réglée";
+  $("fLum").textContent = s.s;
+  $("fClock").textContent = s.c || "?";
+  $("sky").dataset.p = s.p;
+  $("phaseIcon").innerHTML = PHASE_ICONS[s.p] || "";
   for (const [k, label, man] of [["i", "Int", "mi"], ["e", "Ext", "me"]]) {
-    $("b" + label).classList.toggle("on", s[k] > 0);
-    $("m" + label).textContent = s[k] > 0 ? (s[man] ? `manuel, encore ${s[man]} min` : `${s[k]} %`) : "éteint";
+    $("t" + label).classList.toggle("on", s[k] > 0);
+    $("m" + label).textContent = s[k] > 0 ? (s[man] ? `à la main, encore ${s[man]} min` : `allumé, ${s[k]} %`) : "éteint";
   }
+  updateHero();
   if (s.n !== lastMsgSeen && s.m) { if (lastMsgSeen >= 0) setStatus(s.m); lastMsgSeen = s.n; }
 }
 
@@ -302,10 +448,11 @@ function showInfo(j) {
     ["Mode", j.mode === "test" ? "test (temps accéléré)" : "réel"],
     ["En marche depuis", duration(j.u)],
     ["Démarrages", `${j.boots} (dernier : ${j.rst})`],
-    ["Soirées depuis le démarrage", j.ev],
+    ["Soirées", `${j.ev} depuis le démarrage`],
     ["Température puce", `${j.t} °C`],
     ["Mémoire libre", `${j.heap} ko`],
     ["Programme", j.ver],
+    ["Application", PAGE_VERSION],
   ];
   $("health").innerHTML = h.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
   const items = j.j.slice().reverse().map(([start, end, val]) => {
@@ -316,6 +463,7 @@ function showInfo(j) {
   $("journal").innerHTML = items.length ? items.join("") : '<li class="note">Pas encore de soirée depuis le démarrage.</li>';
   histCache = null;
   renderHist();
+  updateHero();
   drawChart();
   if (live) saveCache();
 }
@@ -338,7 +486,7 @@ const W = 340, H = 200, L = 34, R = 6, T = 8, B = 30;
 let range = 1;   // en jours, 0 = tout
 try { range = +(localStorage.getItem("poulailler-periode") ?? 1); } catch {}
 
-function chartPoints() {
+function chartPoints(range) {
   const t1 = Date.now();
   if (range === 1 && curve && curve.length) {
     return { t0: t1 - 86400000, t1, pts: curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t >= t1 - 86400000) };
@@ -360,21 +508,21 @@ function chartPoints() {
 }
 
 function chartTitle() {
-  return range === 1 ? "Lumière des dernières 24 h" : range ? `Lumière des ${range} derniers jours` : "Lumière, tout l'historique";
+  return range === 1 ? "Dernières 24 h" : range ? `${range} derniers jours` : "Tout l'historique";
 }
 
 // Dessine la courbe dans `svg` à la taille W × H (en pixels écran pour le plein écran).
 // `view` : fenêtre de temps zoomée {t0, t1}, sinon toute la période choisie.
-function renderChart(svg, W, H, view, infoEl) {
+function renderChart(svg, W, H, view, infoEl, r = range) {
   const css = getComputedStyle(document.documentElement);
   const col = n => css.getPropertyValue(n).trim();
   const big = W > 400;
   const L = big ? 44 : 34, R = big ? 12 : 6, T = 8, B = big ? 34 : 30, fs = big ? 12 : 10;
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  const all = chartPoints();
+  const all = chartPoints(r);
   const t0 = view ? view.t0 : all.t0, t1 = view ? view.t1 : all.t1;
   if (!all.pts.length) {
-    const msg = range === 1 ? "Pas encore de mesure." : "Pas encore d'historique : connecte-toi pour synchroniser.";
+    const msg = r === 1 ? "Pas encore de mesure." : "Pas encore d'historique : connecte-toi pour synchroniser.";
     svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${col("--muted")}" font-size="${fs + 2}">${msg}</text>`;
     return { t0, t1, L, R, W };
   }
@@ -444,6 +592,9 @@ function drawChart() {
   const svg = $("chart");
   renderChart(svg, 340, 200, null, $("chartInfo"));
   svg.onpointerdown = svg.onpointermove = ev => svg.__pick(ev.clientX);
+  const mini = $("mini");
+  renderChart(mini, 340, 120, null, $("miniInfo"), 1);
+  mini.onpointerdown = mini.onpointermove = ev => mini.__pick(ev.clientX);
   if (full.open) drawFull();
 }
 
@@ -707,6 +858,7 @@ const errText = e => {
 
 function setLink(kind, text) {
   const l = $("link"); l.className = "link" + (kind ? " " + kind : ""); $("linkText").textContent = text;
+  document.body.classList.toggle("live", kind === "ok");
 }
 
 async function attach(dev) {
@@ -954,6 +1106,45 @@ $("defaults").addEventListener("click", async () => {
 });
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
 setInterval(() => { if (state) drawChart(); }, 60000);
+// Onglets en bas. Le dernier onglet ouvert est gardé.
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("show", t.id === "tab-" + name));
+  document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  try { localStorage.setItem("poulailler-onglet", name); } catch {}
+  window.scrollTo(0, 0);
+  if (name === "curve" || name === "now") drawChart();
+}
+document.querySelectorAll(".tabbar button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+$("goCurve").addEventListener("click", () => showTab("curve"));
+let startTab = "now"; try { startTab = localStorage.getItem("poulailler-onglet") || "now"; } catch {}
+showTab(["now", "curve", "settings", "board"].includes(startTab) ? startTab : "now");
+
+// Thème : automatique (suit l'iPhone), jour ou nuit.
+const THEME_ICONS = {
+  auto: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg>',
+  dark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3a9 9 0 1 0 6 13A7 7 0 0 1 15 3z"/></svg>',
+};
+function applyTheme(t) {
+  if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("poulailler-theme", t); } catch {}
+  document.querySelectorAll("#themeSeg button").forEach(b => b.classList.toggle("sel", b.dataset.t === t));
+  $("themeBtn").innerHTML = THEME_ICONS[t];
+  $("themeBtn").dataset.t = t;
+  const dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", dark ? "#0f1820" : "#eef1ec");
+  drawChart();
+}
+let theme = "auto"; try { theme = localStorage.getItem("poulailler-theme") || "auto"; } catch {}
+document.querySelectorAll("#themeSeg button").forEach(b => b.addEventListener("click", () => applyTheme(b.dataset.t)));
+$("themeBtn").addEventListener("click", () => {
+  const order = ["auto", "light", "dark"];
+  applyTheme(order[(order.indexOf($("themeBtn").dataset.t) + 1) % 3]);
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if ($("themeBtn").dataset.t === "auto") applyTheme("auto"); });
+applyTheme(theme);
+setInterval(updateHero, 30000);
+
 loadStore();
 loadCache();
 renderHist();
