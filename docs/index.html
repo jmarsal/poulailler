@@ -40,7 +40,8 @@
   #full[hidden]{display:none}
   .fullbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
   .fullbar span{display:flex;gap:6px}
-  .fullbar button{min-width:44px}
+  .fullbar button{min-width:40px;padding:8px 10px}
+  .fullbar strong{font-size:15px;line-height:1.2}
   .fullplot{flex:1;min-height:0}
   .fullplot svg{width:100%;height:100%}
   #fullInfo{min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
@@ -197,6 +198,8 @@
   <div class="fullbar">
     <strong id="fullTitle">Lumière</strong>
     <span>
+      <button class="small" id="panLeft" aria-label="Plus tôt">◀</button>
+      <button class="small" id="panRight" aria-label="Plus tard">▶</button>
       <button class="small" id="zoomOut" aria-label="Dézoomer">−</button>
       <button class="small" id="zoomIn" aria-label="Zoomer">+</button>
       <button class="small" id="zoomReset">Tout</button>
@@ -204,7 +207,7 @@
     </span>
   </div>
   <div class="fullplot"><svg id="fullChart" aria-label="Courbe de lumière en grand"></svg></div>
-  <div id="fullInfo" class="note">Un doigt : lire une valeur. Deux doigts : écarter pour zoomer, glisser pour se déplacer. Double tap : zoom. Tourne le téléphone pour le mode paysage.</div>
+  <div id="fullInfo" class="note">Toucher : lire une valeur. Glisser : se déplacer (une fois zoomé). Deux doigts : zoomer. Double tap : zoom. Tourne le téléphone pour le mode paysage.</div>
 </div>
 
 <script>
@@ -452,6 +455,10 @@ function drawFull() {
   $("fullTitle").textContent = chartTitle();
   full.geo = renderChart(svg, Math.round(box.width), Math.round(box.height), full.view, $("fullInfo"));
   $("zoomReset").disabled = !full.view;
+  // Flèches grisées au bord : on voit tout de suite qu'on est au début ou à la fin.
+  const g = full.geo;
+  $("panLeft").disabled = !full.view || g.t0 <= g.allT0 + 1000;
+  $("panRight").disabled = !full.view || g.t1 >= g.allT1 - 1000;
 }
 function openFull() {
   full.open = true; full.view = null;
@@ -489,39 +496,54 @@ function timeAt(clientX) {
 function setupFull() {
   const svg = $("fullChart");
   const pts = () => [...full.pointers.values()];
+  const plotWidth = () => { const g = full.geo, r = svg.getBoundingClientRect(); return r.width * (g.W - g.L - g.R) / g.W; };
+  // Un doigt : tap = lire une valeur ; glisser = se déplacer (si zoomé) ou balayer la lecture.
+  // Deux doigts : écarter pour zoomer, glisser pour se déplacer.
+  let start = 0, last = 0, dragging = false, lastTap = 0;
   svg.addEventListener("pointerdown", ev => {
     svg.setPointerCapture(ev.pointerId);
     full.pointers.set(ev.pointerId, ev.clientX);
-    if (full.pointers.size === 1) full.multi = false;
+    if (full.pointers.size === 1) { full.multi = false; dragging = false; start = last = ev.clientX; }
     if (full.pointers.size === 2) {
       full.multi = true;
       const [a, b] = pts();
       full.pinch = { dist: Math.abs(a - b) || 1, mid: (a + b) / 2 };
-    } else if (svg.__pick) svg.__pick(ev.clientX);
+    }
   });
   svg.addEventListener("pointermove", ev => {
     if (!full.pointers.has(ev.pointerId)) return;
     full.pointers.set(ev.pointerId, ev.clientX);
+    const g = full.geo; if (!g) return;
     if (full.pointers.size === 2 && full.pinch) {
       const [a, b] = pts(), dist = Math.abs(a - b) || 1, mid = (a + b) / 2;
       const factor = dist / full.pinch.dist;
       if (Math.abs(factor - 1) > 0.02) zoomAt(timeAt(full.pinch.mid), factor);
-      const g = full.geo, r = svg.getBoundingClientRect();
-      const dx = (mid - full.pinch.mid) / r.width * g.W;
-      if (Math.abs(dx) > 1) panBy(-dx / (g.W - g.L - g.R) * (g.t1 - g.t0));
+      const dx = mid - full.pinch.mid;
+      if (Math.abs(dx) > 1) panBy(-dx / plotWidth() * (full.geo.t1 - full.geo.t0));
       full.pinch = { dist, mid };
-    } else if (full.pointers.size === 1 && svg.__pick) svg.__pick(ev.clientX);
+    } else if (full.pointers.size === 1 && !full.multi) {
+      if (!dragging && Math.abs(ev.clientX - start) > 6) dragging = true;
+      if (!dragging) return;
+      if (full.view) panBy(-(ev.clientX - last) / plotWidth() * (g.t1 - g.t0));   // la courbe suit le doigt
+      else if (svg.__pick) svg.__pick(ev.clientX);                                // vue complète : balayer la lecture
+      last = ev.clientX;
+    }
   });
-  const up = ev => { full.pointers.delete(ev.pointerId); if (full.pointers.size < 2) full.pinch = null; };
-  svg.addEventListener("pointerup", up);
-  svg.addEventListener("pointercancel", up);
-  // Double tap : zoom ×2 à cet endroit.
-  let lastTap = 0;
-  svg.addEventListener("pointerup", ev => {
+  const end = ev => {
+    if (!full.pointers.has(ev.pointerId)) return;
+    full.pointers.delete(ev.pointerId);
+    if (full.pointers.size < 2) full.pinch = null;
+    if (ev.type !== "pointerup" || full.multi || dragging || full.pointers.size) return;
+    // Tap simple : lire la valeur ; double tap : zoom ×2 à cet endroit.
     const now = Date.now();
-    if (full.multi) { lastTap = 0; return; }   // fin d'un geste à deux doigts : pas un tap
-    if (now - lastTap < 300) { zoomAt(timeAt(ev.clientX), 2); lastTap = 0; } else lastTap = now;
-  });
+    if (now - lastTap < 300) { zoomAt(timeAt(ev.clientX), 2); lastTap = 0; }
+    else { lastTap = now; if (svg.__pick) svg.__pick(ev.clientX); }
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  const pan = k => full.geo && full.view && panBy(k * (full.geo.t1 - full.geo.t0));
+  $("panLeft").addEventListener("click", () => pan(-0.5));
+  $("panRight").addEventListener("click", () => pan(0.5));
   $("zoomIn").addEventListener("click", () => full.geo && zoomAt((full.geo.t0 + full.geo.t1) / 2, 2));
   $("zoomOut").addEventListener("click", () => full.geo && zoomAt((full.geo.t0 + full.geo.t1) / 2, 0.5));
   $("zoomReset").addEventListener("click", () => { full.view = null; drawFull(); });
