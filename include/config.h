@@ -123,6 +123,10 @@ constexpr uint16_t SERIAL_WAIT_MS      = 2000;
 // veille profonde. Mettre false pour le couper.
 constexpr bool        ENABLE_BLE      = true;
 constexpr const char* BLE_NAME        = "Poulailler";
+// Appui de 3 s sur le bouton BOOT, carte en marche : efface les appairages Bluetooth.
+// (Ne pas le tenir pendant la mise sous tension : la carte démarrerait en mode programmation.)
+constexpr uint8_t     BOOT_BUTTON_PIN = 9;
+constexpr uint32_t    BOOT_HOLD_MS    = 3000;
 // Sûreté : un allumage manuel s'éteint seul au bout de ce délai, quoi qu'il arrive.
 // L'éclairage de l'entrée retient la porte Kerbl ouverte : jamais d'allumage sans fin.
 constexpr uint32_t    MANUAL_MAX_MS   = 15 * MIN;

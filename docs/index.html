@@ -34,6 +34,7 @@
   .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
   .facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
   .note{font-size:13px;color:var(--muted)}
+  #log{font:12px/1.35 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;background:var(--bg);border-radius:10px;padding:10px;margin:10px 0 0}
   svg{display:block;width:100%;height:auto;touch-action:none}
   #chartInfo{font-size:14px;color:var(--muted);min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
@@ -138,7 +139,7 @@
 
   <div class="card">
     <h2>Mise à jour du programme</h2>
-    <p class="note">Choisis le fichier <b>firmware.bin</b> (sur le Mac : .pio/build/esp32c3/firmware.bin, envoyé sur l'iPhone par AirDrop). Garde l'écran allumé et reste près du poulailler pendant l'envoi, deux à quatre minutes. Si l'envoi est interrompu, la carte garde son programme actuel.</p>
+    <p class="note">Choisis le fichier <b>firmware.bin</b> (sur le Mac : .pio/build/esp32c3/firmware.bin, envoyé sur l'iPhone par AirDrop). Garde l'écran allumé et reste près du poulailler pendant l'envoi, une à quatre minutes. Si l'envoi est interrompu, la carte garde son programme actuel.</p>
     <input type="file" id="fw" accept=".bin,application/octet-stream" disabled>
     <div class="btns">
       <button id="otaGo" class="primary" disabled>Envoyer</button>
@@ -146,6 +147,13 @@
     </div>
     <progress id="otaBar" max="100" value="0" style="width:100%;margin-top:12px;display:none"></progress>
     <div id="otaInfo" class="note"></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><h2 style="margin:0">Journal technique</h2>
+      <span><button id="logCopy" class="small">Copier</button> <button id="logClear" class="small">Vider</button></span></div>
+    <p class="note">Erreurs brutes et événements Bluetooth, gardés sur ce téléphone même après rechargement de la page. Utile pour le dépannage : « Copier » puis colle-le à Claude.</p>
+    <pre id="log"></pre>
   </div>
 
   <p class="note">Un allumage manuel s'éteint de lui-même au bout de 15 minutes. À la première connexion, l'iPhone demande le code à 6 chiffres du fichier secrets.h.</p>
@@ -160,7 +168,23 @@ const $ = id => document.getElementById(id);
 const dec = new TextDecoder(), enc = new TextEncoder();
 let ch = {}, state = null, stateAt = 0, info = null, curve = null, lastMsgSeen = -1;
 
-function setStatus(text, err) { const s = $("status"); s.textContent = text; s.className = err ? "err" : ""; }
+function setStatus(text, err) {
+  const s = $("status"); s.textContent = text; s.className = err ? "err" : "";
+  if (err) log("ERREUR " + text);
+}
+
+// Journal technique : 80 dernières lignes, gardées dans le téléphone.
+const LOG_KEY = "poulailler-journal-v1";
+let logLines = [];
+try { logLines = JSON.parse(localStorage.getItem(LOG_KEY) || "[]"); } catch {}
+function log(text) {
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  logLines.push(`${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())} ${text}`);
+  if (logLines.length > 80) logLines = logLines.slice(-80);
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(logLines)); } catch {}
+  renderLog();
+}
+function renderLog() { const el = $("log"); if (el) { el.textContent = logLines.join("\n") || "(vide)"; el.scrollTop = el.scrollHeight; } }
 function enable(on) {
   document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on);
   $("fw").disabled = !on || !ch.ota; $("otaGo").disabled = !on || !ch.ota;
@@ -204,7 +228,9 @@ function markStale(at) {
   el.textContent = `Dernières valeurs connues : ${dayLabel(d)} à ${hhmm(d)}. Elles se mettront à jour à la connexion.`;
 }
 
+let lastN = null;
 function showState(s, at) {
+  if (!at && s && s.m && s.n !== lastN) { if (lastN !== null) log("carte : " + s.m); lastN = s.n; }
   state = s; stateAt = at || Date.now();
   if (live) saveCache();
   $("fPhase").textContent = PHASES[s.p] ?? "?";
@@ -299,7 +325,15 @@ async function refresh() {
 // Connexion. La première fois : choix de l'appareil et code (requestDevice).
 // Ensuite : reconnexion automatique quand la page est ouverte et la carte à portée.
 let device = null, connecting = false, retryTimer = null, retryDelay = 2000;
-const errText = e => (e && (e.message || e.name)) || String(e || "erreur inconnue");
+// Erreur telle que le navigateur la donne : type, nom, message, code éventuel.
+const errText = e => {
+  if (e === null || e === undefined) return `valeur ${e}`;
+  if (typeof e !== "object") return `valeur brute (${typeof e}) ${JSON.stringify(e)}`;
+  const parts = [e.name || (e.constructor && e.constructor.name) || "objet"];
+  if (e.message) parts.push(e.message);
+  if (e.code !== undefined) parts.push("code " + e.code);
+  return parts.join(" : ");
+};
 
 function setLink(kind, text) {
   const l = $("link"); l.className = "link" + (kind ? " " + kind : ""); $("linkText").textContent = text;
@@ -310,6 +344,7 @@ async function attach(dev) {
   connecting = true;
   clearTimeout(retryTimer);
   setLink("wait", "connexion…");
+  log("connexion à " + (dev.name || dev.id) + "…");
   try {
     try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch {}   // repart d'une liaison propre
     const svc = await (await dev.gatt.connect()).getPrimaryService(SERVICE);
@@ -328,6 +363,7 @@ async function attach(dev) {
     enable(true);
     retryDelay = 2000;
     setLink("ok", "connecté");
+    log("connecté");
     setStatus("Connecté.");
     $("connect").textContent = "Connecté";
   } catch (e) {
@@ -354,6 +390,7 @@ function adopt(dev) {
   dev.__adopted = true;
   dev.addEventListener("gattserverdisconnected", () => {
     enable(false);
+    log("déconnecté par la liaison (gattserverdisconnected)");
     live = false; markStale(Date.now());
     setLink("", "déconnecté");
     setStatus("Déconnecté, reconnexion automatique…", true);
@@ -420,7 +457,8 @@ async function save() {
 }
 
 // Mise à jour du programme : « ota begin », morceaux de 180 octets, « ota end ».
-let otaStop = false;
+// La carte vérifie le programme complet : s'il manque un octet, elle garde l'ancien.
+let otaStop = false, otaFast = false;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function freshState() { const s = JSON.parse(dec.decode(await ch.state.readValue())); showState(s); return s; }
 // Attend un nouveau message de la carte (compteur n différent de n0) commençant par `prefix`.
@@ -444,9 +482,17 @@ async function otaSend() {
     const ready = await waitMsg("mise à jour", 5000, n0);
     if (!ready || !ready.includes("prête")) throw new Error(ready || "la carte ne répond pas");
     const CHUNK = 180, t0 = Date.now();
+    let slow = false; try { slow = localStorage.getItem("poulailler-ota-lent") === "1"; } catch {}
+    const fast = !slow && typeof ch.ota.writeValueWithoutResponse === "function";
+    otaFast = fast;
+    log(`mise à jour : ${data.length} octets, envoi ${fast ? "rapide" : "lent"}`);
     for (let i = 0; i < data.length; i += CHUNK) {
       if (otaStop) { await send("ota abort", true); throw new Error("annulée"); }
-      await ch.ota.writeValue(data.slice(i, i + CHUNK));
+      // Rapide : envoi sans accusé de réception, sauf un morceau sur 16 qui
+      // sert de point d'arrêt (la carte a tout reçu avant de répondre).
+      const part = data.slice(i, i + CHUNK);
+      if (fast && (i / CHUNK) % 16 !== 15) await ch.ota.writeValueWithoutResponse(part);
+      else await ch.ota.writeValue(part);
       if ((i / CHUNK) % 20 === 0) {
         const done = i + CHUNK, rate = done / ((Date.now() - t0) / 1000);
         bar.value = Math.round(100 * done / data.length);
@@ -454,6 +500,7 @@ async function otaSend() {
       }
     }
     bar.value = 100;
+    log(`mise à jour : envoi terminé en ${Math.round((Date.now() - t0) / 1000)} s`);
     $("otaInfo").textContent = "Vérification par la carte…";
     n0 = state ? state.n : -1;
     await send("ota end", true);
@@ -461,12 +508,31 @@ async function otaSend() {
     if (res && res.includes("réussie")) $("otaInfo").textContent = "Réussi. La carte redémarre : reconnecte-toi dans une dizaine de secondes, puis vérifie la version dans « Santé de la carte ».";
     else throw new Error(res || "pas de réponse");
   } catch (e) {
-    $("otaInfo").textContent = "Mise à jour non faite : " + errText(e) + ". La carte garde son programme actuel.";
+    let more = "";
+    // Si l'envoi rapide a perdu des morceaux, le prochain essai passe en mode lent (sûr).
+    if (otaFast && /octets sur/.test(errText(e))) {
+      try { localStorage.setItem("poulailler-ota-lent", "1"); } catch {}
+      more = " Relance l'envoi : il passera en mode lent, plus sûr.";
+    }
+    log("ERREUR mise à jour : " + errText(e));
+    $("otaInfo").textContent = "Mise à jour non faite : " + errText(e) + ". La carte garde son programme actuel." + more;
   } finally {
     $("otaStop").disabled = true; $("otaGo").disabled = !ch.ota;
   }
 }
 $("otaGo").addEventListener("click", otaSend);
+renderLog();
+log("page ouverte, " + (navigator.bluetooth ? "Bluetooth disponible" : "pas de Bluetooth dans ce navigateur") + ", " + navigator.userAgent);
+$("logClear").addEventListener("click", () => { logLines = []; try { localStorage.removeItem(LOG_KEY); } catch {} renderLog(); });
+$("logCopy").addEventListener("click", async () => {
+  const text = logLines.join("\n");
+  try { await navigator.clipboard.writeText(text); setStatus("Journal copié."); }
+  catch {
+    const r = document.createRange(); r.selectNodeContents($("log"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    setStatus("Journal sélectionné : fais Copier dans le menu.");
+  }
+});
 $("otaStop").addEventListener("click", () => { otaStop = true; });
 
 $("connect").addEventListener("click", connect);

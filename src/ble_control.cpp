@@ -7,6 +7,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <Update.h>
+#include <esp_gap_ble_api.h>
 
 namespace {
   // Identifiants (UUID) propres à ce montage, choisis au hasard une fois pour toutes.
@@ -49,6 +50,31 @@ namespace {
       // Plus aucun téléphone : un envoi de programme en cours est abandonné.
       if (connections == 0 && otaOn) { Update.abort(); otaOn = false; }
       server->startAdvertising();   // redevient visible pour la connexion suivante
+    }
+  };
+
+  // Appairage : si un téléphone échoue (mauvais code, ou clé périmée après
+  // « Oublier cet appareil » sur l'iPhone), la carte efface ses anciennes clés.
+  // L'essai suivant repart d'un appairage propre ; le code reste exigé.
+  void removeAllBonds() {
+    int n = esp_ble_get_bond_device_num();
+    if (n <= 0) return;
+    esp_ble_bond_dev_t* list = (esp_ble_bond_dev_t*)malloc(sizeof(esp_ble_bond_dev_t) * n);
+    if (!list) return;
+    if (esp_ble_get_bond_device_list(&n, list) == ESP_OK)
+      for (int i = 0; i < n; ++i) esp_ble_remove_bond_device(list[i].bd_addr);
+    free(list);
+  }
+
+  class SecurityCallbacks : public BLESecurityCallbacks {
+    uint32_t onPassKeyRequest() override { return BLE_PIN; }
+    void onPassKeyNotify(uint32_t) override {}
+    bool onSecurityRequest() override { return true; }
+    bool onConfirmPIN(uint32_t) override { return false; }   // pas de comparaison de nombres
+    void onAuthenticationComplete(esp_ble_auth_cmpl_t r) override {
+      if (r.success) return;
+      Serial.printf("Bluetooth : appairage refusé (raison 0x%02x), anciennes clés effacées\n", r.fail_reason);
+      removeAllBonds();
     }
   };
 
@@ -100,6 +126,7 @@ namespace BleControl {
     BLESecurity* security = new BLESecurity();
     security->setStaticPIN(BLE_PIN);
     security->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
+    BLEDevice::setSecurityCallbacks(new SecurityCallbacks());
 
     BLEServer* server = BLEDevice::createServer();
     server->setCallbacks(new ServerCallbacks());
@@ -160,6 +187,8 @@ namespace BleControl {
   }
 
   bool connected() { return connections > 0; }
+
+  void clearBonds() { removeAllBonds(); }
 
   String otaBegin(size_t size) {
     if (otaOn) { Update.abort(); otaOn = false; }

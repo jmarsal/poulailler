@@ -21,6 +21,9 @@ namespace BleControl {
   void setInfo(const String& json);
   void setCurve(const uint8_t* data, size_t len);
   bool connected();
+  // Efface tous les appairages enregistrés (appui long sur BOOT) : le téléphone
+  // devra « Oublier cet appareil » puis redonner le code.
+  void clearBonds();
 
   // Mise à jour du programme par Bluetooth (OTA, « over the air »).
   // Le téléphone envoie « ota begin <taille> », puis le fichier firmware.bin par

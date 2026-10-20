@@ -25,7 +25,7 @@
 #include "history.h"
 
 namespace {
-  constexpr const char* FIRMWARE = "2026-10-20 c";
+  constexpr const char* FIRMWARE = "2026-10-20 d";
 
   dusk::Controller controller(DUSK_CONFIG);
   dusk::Config cfg = DUSK_CONFIG;
@@ -210,6 +210,7 @@ void setup() {
 
   LightSensor::begin();
   Lighting::begin();
+  pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);   // appui = niveau bas
   if (ENABLE_BLE) {
     BleControl::begin();
     BleControl::setInfo(infoJson());
@@ -262,6 +263,26 @@ void loop() {
     while (BleControl::pollCommand(cmd)) {
       handleCommand(cmd, now);
       publishNow = true;
+    }
+  }
+
+  // Appui long sur BOOT : efface les appairages Bluetooth (dépannage sans câble)
+  if (ENABLE_BLE) {
+    static uint32_t pressedSince = 0;
+    static bool done = false;
+    if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
+      if (pressedSince == 0) pressedSince = now ? now : 1;
+      if (!done && now - pressedSince >= BOOT_HOLD_MS) {
+        done = true;
+        BleControl::clearBonds();
+        say("appairages effacés : oublie l'appareil sur le téléphone, puis reconnecte-toi");
+        Serial.println(F("---- appairages Bluetooth effacés (bouton BOOT)"));
+        StatusLed::flash(1500);
+        publishNow = true;
+      }
+    } else {
+      pressedSince = 0;
+      done = false;
     }
   }
 
