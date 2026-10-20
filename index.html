@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Poulailler</title>
+<style>
+  :root{--bg:#f4f1ea;--card:#fffdf8;--ink:#2a2620;--muted:#7a7266;--line:#e3ddd0;--accent:#c4621d;--on:#e9a23b;--ok:#3d7d4a;--warn:#b3422e}
+  @media (prefers-color-scheme: dark){:root{--bg:#1b1916;--card:#25221e;--ink:#f1ece2;--muted:#a59c8e;--line:#3a352e;--accent:#e08a46;--on:#f0b453;--ok:#78b886;--warn:#e07a66}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 32px}
+  main{max-width:480px;margin:0 auto}
+  h1{font-size:26px;margin:4px 0 2px}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .title{font-weight:600;font-size:18px}
+  .meta{color:var(--muted);font-size:14px}
+  .bulb{width:14px;height:14px;border-radius:50%;background:var(--line);display:inline-block;margin-right:8px;vertical-align:-1px}
+  .bulb.on{background:var(--on);box-shadow:0 0 12px var(--on)}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:16px 10px;background:var(--line);color:var(--ink);cursor:pointer}
+  button.primary{background:var(--accent);color:#fff}
+  button:disabled{opacity:.45}
+  button.wide{width:100%}
+  #status{font-size:14px;color:var(--muted);margin-top:10px;min-height:1.4em}
+  #status.err{color:var(--warn)}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+  .facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
+  .note{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Poulailler</h1>
+  <p class="sub">Éclairage du soir, commande par Bluetooth</p>
+
+  <div class="card">
+    <button id="connect" class="primary wide">Se connecter</button>
+    <div id="status">Non connecté.</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><span class="bulb" id="bExt"></span><span class="title">Entrée</span></div>
+      <span class="meta" id="mExt">?</span>
+    </div>
+    <div class="btns">
+      <button data-cmd="ext on" disabled>Allumer</button>
+      <button data-cmd="ext off" disabled>Éteindre</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div><span class="bulb" id="bInt"></span><span class="title">Intérieur</span></div>
+      <span class="meta" id="mInt">?</span>
+    </div>
+    <div class="btns">
+      <button data-cmd="int on" disabled>Allumer</button>
+      <button data-cmd="int off" disabled>Éteindre</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <button data-cmd="off" class="wide" disabled>Tout éteindre</button>
+  </div>
+
+  <div class="card">
+    <dl class="facts">
+      <dt>Phase</dt><dd id="fPhase">?</dd>
+      <dt>Lumière</dt><dd id="fLum">?</dd>
+    </dl>
+  </div>
+
+  <p class="note">Un allumage manuel s'éteint de lui-même au bout de 15 minutes. À la première connexion, l'iPhone demande le code à 6 chiffres du fichier secrets.h.</p>
+</main>
+
+<script>
+const SERVICE = "6b1f0001-3c2d-4e5a-9b7c-5f0e2a9c4d10";
+const CMD     = "6b1f0002-3c2d-4e5a-9b7c-5f0e2a9c4d10";
+const STATE   = "6b1f0003-3c2d-4e5a-9b7c-5f0e2a9c4d10";
+const $ = id => document.getElementById(id);
+let device = null, cmdChar = null, stateChar = null;
+
+function setStatus(text, err) { const s = $("status"); s.textContent = text; s.className = err ? "err" : ""; }
+function enable(on) { document.querySelectorAll("button[data-cmd]").forEach(b => b.disabled = !on); }
+
+// Texte reçu, par exemple : « soirée | lum 812 (lisse 830) | int 100% | ext 0% manuel | ext. encore 12 min »
+function showState(text) {
+  const parts = text.split("|").map(p => p.trim());
+  $("fPhase").textContent = parts[0] || "?";
+  const lum = (parts.find(p => p.startsWith("lum")) || "").replace("lum ", "");
+  $("fLum").textContent = lum || "?";
+  for (const [key, label] of [["int", "Int"], ["ext", "Ext"]]) {
+    const p = parts.find(x => x.startsWith(key + " ")) || "";
+    const m = p.match(/(\d+)%/);
+    const pct = m ? +m[1] : 0;
+    const manual = p.includes("manuel");
+    const rest = (parts.find(x => x.startsWith(key + ". encore")) || "").replace(key + ". encore ", "");
+    $("b" + label).classList.toggle("on", pct > 0);
+    $("m" + label).textContent = pct > 0 ? (manual ? `manuel, encore ${rest}` : `${pct} %`) : "éteint";
+  }
+}
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    setStatus("Ce navigateur ne gère pas le Bluetooth. Sur iPhone, ouvre cette page dans l'appli Bluefy.", true);
+    return;
+  }
+  try {
+    setStatus("Recherche du poulailler…");
+    device = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
+    device.addEventListener("gattserverdisconnected", () => { enable(false); setStatus("Déconnecté.", true); $("connect").textContent = "Se reconnecter"; });
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    cmdChar = await svc.getCharacteristic(CMD);
+    stateChar = await svc.getCharacteristic(STATE);
+    stateChar.addEventListener("characteristicvaluechanged", e => showState(new TextDecoder().decode(e.target.value)));
+    await stateChar.startNotifications();          // déclenche l'appairage avec code la première fois
+    showState(new TextDecoder().decode(await stateChar.readValue()));
+    enable(true);
+    setStatus("Connecté.");
+    $("connect").textContent = "Connecté";
+  } catch (e) {
+    setStatus("Échec : " + e.message, true);
+  }
+}
+
+async function send(cmd) {
+  if (!cmdChar) return;
+  try {
+    await cmdChar.writeValue(new TextEncoder().encode(cmd));
+    setStatus("Envoyé : " + cmd);
+  } catch (e) { setStatus("Échec de l'envoi : " + e.message, true); }
+}
+
+$("connect").addEventListener("click", connect);
+document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
+</script>
+</body>
+</html>
