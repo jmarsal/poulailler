@@ -6,29 +6,41 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Poulailler</title>
 <style>
-  :root{--bg:#f4f1ea;--card:#fffdf8;--ink:#2a2620;--muted:#7a7266;--line:#e3ddd0;--accent:#c4621d;--on:#e9a23b;--ok:#3d7d4a;--warn:#b3422e}
-  @media (prefers-color-scheme: dark){:root{--bg:#1b1916;--card:#25221e;--ink:#f1ece2;--muted:#a59c8e;--line:#3a352e;--accent:#e08a46;--on:#f0b453;--ok:#78b886;--warn:#e07a66}}
+  :root{--bg:#f4f1ea;--card:#fffdf8;--ink:#2a2620;--muted:#7a7266;--line:#e3ddd0;--accent:#c4621d;--on:#e9a23b;--dusk:#c4621d;--day:#3b6fb6;--warn:#b3422e;--curve:#2a2620}
+  @media (prefers-color-scheme: dark){:root{--bg:#1b1916;--card:#25221e;--ink:#f1ece2;--muted:#a59c8e;--line:#3a352e;--accent:#e08a46;--on:#f0b453;--dusk:#e08a46;--day:#7ea6e0;--warn:#e07a66;--curve:#f1ece2}}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 32px}
-  main{max-width:480px;margin:0 auto}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 40px}
+  main{max-width:520px;margin:0 auto}
   h1{font-size:26px;margin:4px 0 2px}
+  h2{font-size:17px;margin:0 0 10px}
   .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
   .row{display:flex;justify-content:space-between;align-items:center;gap:12px}
   .title{font-weight:600;font-size:18px}
-  .meta{color:var(--muted);font-size:14px}
+  .meta{color:var(--muted);font-size:14px;text-align:right}
   .bulb{width:14px;height:14px;border-radius:50%;background:var(--line);display:inline-block;margin-right:8px;vertical-align:-1px}
   .bulb.on{background:var(--on);box-shadow:0 0 12px var(--on)}
   .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
-  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:16px 10px;background:var(--line);color:var(--ink);cursor:pointer}
+  button{font:inherit;font-weight:600;border:0;border-radius:12px;padding:14px 10px;background:var(--line);color:var(--ink);cursor:pointer}
   button.primary{background:var(--accent);color:#fff}
+  button.small{padding:8px 12px;font-size:14px}
   button:disabled{opacity:.45}
   button.wide{width:100%}
   #status{font-size:14px;color:var(--muted);margin-top:10px;min-height:1.4em}
   #status.err{color:var(--warn)}
-  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+  .facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
   .facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
   .note{font-size:13px;color:var(--muted)}
+  svg{display:block;width:100%;height:auto;touch-action:none}
+  #chartInfo{font-size:14px;color:var(--muted);min-height:1.4em;margin-top:6px;font-variant-numeric:tabular-nums}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
+  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
+  .form{display:grid;grid-template-columns:1fr auto;gap:10px 12px;align-items:center}
+  .form label{font-size:15px}
+  .form input{font:inherit;width:96px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);text-align:right}
+  ul.journal{list-style:none;padding:0;margin:0;font-size:15px}
+  ul.journal li{padding:6px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  ul.journal li:last-child{border-bottom:0}
 </style>
 </head>
 <body>
@@ -71,37 +83,167 @@
     <dl class="facts">
       <dt>Phase</dt><dd id="fPhase">?</dd>
       <dt>Lumière</dt><dd id="fLum">?</dd>
+      <dt>Heure de la carte</dt><dd id="fClock">?</dd>
     </dl>
+  </div>
+
+  <div class="card">
+    <div class="row"><h2>Lumière des dernières 24 h</h2><button class="small" id="reload" disabled>Actualiser</button></div>
+    <svg id="chart" viewBox="0 0 340 200" aria-label="Courbe de lumière"></svg>
+    <div id="chartInfo">Touche la courbe pour lire une valeur.</div>
+    <div class="legend">
+      <span><i style="background:var(--curve)"></i>lumière lissée</span>
+      <span><i style="background:var(--dusk)"></i>seuil crépuscule</span>
+      <span><i style="background:var(--day)"></i>seuil jour</span>
+      <span><i style="background:var(--on)"></i>rubans allumés</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dernières soirées</h2>
+    <ul class="journal" id="journal"><li class="note">Pas encore de données.</li></ul>
+  </div>
+
+  <div class="card">
+    <h2>Réglages</h2>
+    <div class="form" id="form">
+      <label for="s_dusk">Seuil crépuscule</label><input id="s_dusk" inputmode="numeric">
+      <label for="s_day">Seuil jour</label><input id="s_day" inputmode="numeric">
+      <label for="s_ext_hold">Entrée allumée (min)</label><input id="s_ext_hold" inputmode="numeric">
+      <label for="s_ext_max">Entrée intensité (%)</label><input id="s_ext_max" inputmode="numeric">
+      <label for="s_int_hold">Intérieur plein (min)</label><input id="s_int_hold" inputmode="numeric">
+      <label for="s_int_fade">Intérieur baisse (min)</label><input id="s_int_fade" inputmode="numeric">
+      <label for="s_int_max">Intérieur intensité (%)</label><input id="s_int_max" inputmode="numeric">
+    </div>
+    <div class="btns">
+      <button id="save" class="primary" disabled>Enregistrer</button>
+      <button id="defaults" disabled>Valeurs d'origine</button>
+    </div>
+    <p class="note">Les seuils se lisent sur la courbe : le seuil crépuscule doit correspondre à la lumière d'environ un quart d'heure avant la fermeture de la porte. Réglages ignorés en mode test.</p>
+  </div>
+
+  <div class="card">
+    <h2>Santé de la carte</h2>
+    <dl class="facts" id="health"><dt>État</dt><dd>?</dd></dl>
   </div>
 
   <p class="note">Un allumage manuel s'éteint de lui-même au bout de 15 minutes. À la première connexion, l'iPhone demande le code à 6 chiffres du fichier secrets.h.</p>
 </main>
 
 <script>
-const SERVICE = "6b1f0001-3c2d-4e5a-9b7c-5f0e2a9c4d10";
-const CMD     = "6b1f0002-3c2d-4e5a-9b7c-5f0e2a9c4d10";
-const STATE   = "6b1f0003-3c2d-4e5a-9b7c-5f0e2a9c4d10";
+const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
+const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5);
+const PHASES = ["attente du jour", "jour", "soirée", "nuit"];
+const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
-let device = null, cmdChar = null, stateChar = null;
+const dec = new TextDecoder(), enc = new TextEncoder();
+let ch = {}, state = null, stateAt = 0, info = null, curve = null, lastMsgSeen = -1;
 
 function setStatus(text, err) { const s = $("status"); s.textContent = text; s.className = err ? "err" : ""; }
-function enable(on) { document.querySelectorAll("button[data-cmd]").forEach(b => b.disabled = !on); }
+function enable(on) { document.querySelectorAll("button[data-cmd], #reload, #save, #defaults").forEach(b => b.disabled = !on); }
+const pad = n => String(n).padStart(2, "0");
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function dayLabel(d) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.round((today - new Date(d).setHours(0,0,0,0)) / 86400000);
+  return diff === 0 ? "aujourd'hui" : diff === 1 ? "hier" : d.toLocaleDateString("fr-FR", {weekday:"long", day:"numeric"});
+}
+function duration(sec) {
+  const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  return d ? `${d} j ${h} h` : h ? `${h} h ${pad(m)}` : `${m} min`;
+}
+// Seconde de la carte (depuis son démarrage) vers heure du téléphone.
+function uptimeNow() { return state ? state.u + (Date.now() - stateAt) / 1000 : 0; }
+function toDate(up) { return new Date(Date.now() - (uptimeNow() - up) * 1000); }
 
-// Texte reçu, par exemple : « soirée | lum 812 (lisse 830) | int 100% | ext 0% manuel | ext. encore 12 min »
-function showState(text) {
-  const parts = text.split("|").map(p => p.trim());
-  $("fPhase").textContent = parts[0] || "?";
-  const lum = (parts.find(p => p.startsWith("lum")) || "").replace("lum ", "");
-  $("fLum").textContent = lum || "?";
-  for (const [key, label] of [["int", "Int"], ["ext", "Ext"]]) {
-    const p = parts.find(x => x.startsWith(key + " ")) || "";
-    const m = p.match(/(\d+)%/);
-    const pct = m ? +m[1] : 0;
-    const manual = p.includes("manuel");
-    const rest = (parts.find(x => x.startsWith(key + ". encore")) || "").replace(key + ". encore ", "");
-    $("b" + label).classList.toggle("on", pct > 0);
-    $("m" + label).textContent = pct > 0 ? (manual ? `manuel, encore ${rest}` : `${pct} %`) : "éteint";
+function showState(s) {
+  state = s; stateAt = Date.now();
+  $("fPhase").textContent = PHASES[s.p] ?? "?";
+  $("fLum").textContent = `${s.r} (lissée ${s.s})`;
+  $("fClock").textContent = s.c || "pas encore réglée";
+  for (const [k, label, man] of [["i", "Int", "mi"], ["e", "Ext", "me"]]) {
+    $("b" + label).classList.toggle("on", s[k] > 0);
+    $("m" + label).textContent = s[k] > 0 ? (s[man] ? `manuel, encore ${s[man]} min` : `${s[k]} %`) : "éteint";
   }
+  if (s.n !== lastMsgSeen && s.m) { if (lastMsgSeen >= 0) setStatus(s.m); lastMsgSeen = s.n; }
+}
+
+function showInfo(j) {
+  info = j;
+  for (const [name, key] of SETTINGS) $("s_" + name).value = j.cfg[key];
+  const h = [
+    ["Mode", j.mode === "test" ? "test (temps accéléré)" : "réel"],
+    ["En marche depuis", duration(j.u)],
+    ["Démarrages", `${j.boots} (dernier : ${j.rst})`],
+    ["Soirées depuis le démarrage", j.ev],
+    ["Température puce", `${j.t} °C`],
+    ["Mémoire libre", `${j.heap} ko`],
+    ["Programme", j.ver],
+  ];
+  $("health").innerHTML = h.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join("");
+  const items = j.j.slice().reverse().map(([start, end, val]) => {
+    const a = toDate(start);
+    const fin = end ? hhmm(toDate(end)) : "en cours";
+    return `<li>${dayLabel(a)}, ${hhmm(a)} → ${fin} <span class="note">(lumière ${val})</span></li>`;
+  });
+  $("journal").innerHTML = items.length ? items.join("") : '<li class="note">Pas encore de soirée depuis le démarrage.</li>';
+  drawChart();
+}
+
+function parseCurve(dv) {
+  const last = dv.getUint32(0, true), period = dv.getUint16(4, true), count = dv.getUint16(6, true);
+  const pts = [];
+  for (let i = 0; i < count; i++) {
+    const w = dv.getUint16(8 + 2 * i, true);
+    pts.push({ up: last - (count - 1 - i) * period, v: w & 0x0fff, int: !!(w & 0x1000), ext: !!(w & 0x2000) });
+  }
+  return pts;
+}
+
+// Courbe en SVG : 24 h glissantes, lumière de 0 à 4095.
+const W = 340, H = 200, L = 34, R = 6, T = 8, B = 30;
+function drawChart() {
+  const svg = $("chart");
+  const css = getComputedStyle(document.documentElement);
+  const col = n => css.getPropertyValue(n).trim();
+  if (!curve || !curve.length) { svg.innerHTML = `<text x="${W/2}" y="${H/2}" text-anchor="middle" fill="${col("--muted")}" font-size="12">Pas encore de mesure.</text>`; return; }
+  const t1 = Date.now(), t0 = t1 - 24 * 3600 * 1000;
+  const X = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+  const Y = v => T + (1 - v / 4095) * (H - T - B);
+  let g = "";
+  for (const v of [0, 1000, 2000, 3000, 4000]) g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${col("--line")}"/><text x="${L-4}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="${col("--muted")}">${v}</text>`;
+  for (let h = 0; h <= 24; h += 6) {
+    const d = new Date(t0 + h * 3600000);
+    const anchor = h === 0 ? "start" : h === 24 ? "end" : "middle";
+    g += `<text x="${X(+d)}" y="${H-10}" text-anchor="${anchor}" font-size="10" fill="${col("--muted")}">${hhmm(d)}</text>`;
+  }
+  const pts = curve.map(p => ({ ...p, t: +toDate(p.up) })).filter(p => p.t >= t0);
+  const step = (curve.length > 1 ? (curve[1].up - curve[0].up) : 360) * 1000;
+  for (const p of pts) if (p.int || p.ext) g += `<rect x="${X(p.t)}" y="${H-B+2}" width="${Math.max(1, X(p.t + step) - X(p.t))}" height="5" fill="${col("--on")}"/>`;
+  if (info) {
+    g += `<line x1="${L}" x2="${W-R}" y1="${Y(info.cfg.dusk)}" y2="${Y(info.cfg.dusk)}" stroke="${col("--dusk")}" stroke-dasharray="4 3"/>`;
+    g += `<line x1="${L}" x2="${W-R}" y1="${Y(info.cfg.day)}" y2="${Y(info.cfg.day)}" stroke="${col("--day")}" stroke-dasharray="4 3"/>`;
+  }
+  if (pts.length) g += `<polyline fill="none" stroke="${col("--curve")}" stroke-width="1.8" points="${pts.map(p => `${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")}"/>`;
+  g += `<line id="cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="${col("--accent")}" visibility="hidden"/>`;
+  svg.innerHTML = g;
+  const pick = ev => {
+    const r = svg.getBoundingClientRect();
+    const x = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W;
+    let best = null;
+    for (const p of pts) if (!best || Math.abs(X(p.t) - x) < Math.abs(X(best.t) - x)) best = p;
+    if (!best) return;
+    const c = $("cursor"); c.setAttribute("x1", X(best.t)); c.setAttribute("x2", X(best.t)); c.setAttribute("visibility", "visible");
+    $("chartInfo").textContent = `${dayLabel(new Date(best.t))} ${hhmm(new Date(best.t))} : lumière ${best.v}${best.int || best.ext ? ", rubans allumés" : ""}`;
+  };
+  svg.onpointerdown = svg.onpointermove = pick;
+  svg.ontouchmove = pick;
+}
+
+async function readInfo() { showInfo(JSON.parse(dec.decode(await ch.info.readValue()))); }
+async function readCurve() { curve = parseCurve(await ch.curve.readValue()); drawChart(); }
+async function refresh() {
+  try { await readCurve(); await readInfo(); } catch (e) { setStatus("Lecture impossible : " + e.message, true); }
 }
 
 async function connect() {
@@ -111,15 +253,19 @@ async function connect() {
   }
   try {
     setStatus("Recherche du poulailler…");
-    device = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
+    const device = await navigator.bluetooth.requestDevice({ filters: [{ name: "Poulailler" }], optionalServices: [SERVICE] });
     device.addEventListener("gattserverdisconnected", () => { enable(false); setStatus("Déconnecté.", true); $("connect").textContent = "Se reconnecter"; });
-    const server = await device.gatt.connect();
-    const svc = await server.getPrimaryService(SERVICE);
-    cmdChar = await svc.getCharacteristic(CMD);
-    stateChar = await svc.getCharacteristic(STATE);
-    stateChar.addEventListener("characteristicvaluechanged", e => showState(new TextDecoder().decode(e.target.value)));
-    await stateChar.startNotifications();          // déclenche l'appairage avec code la première fois
-    showState(new TextDecoder().decode(await stateChar.readValue()));
+    const svc = await (await device.gatt.connect()).getPrimaryService(SERVICE);
+    ch = { cmd: await svc.getCharacteristic(CMD), state: await svc.getCharacteristic(STATE),
+           info: await svc.getCharacteristic(INFO), curve: await svc.getCharacteristic(CURVE) };
+    ch.state.addEventListener("characteristicvaluechanged", async e => {
+      try { showState(JSON.parse(dec.decode(e.target.value))); }
+      catch { try { showState(JSON.parse(dec.decode(await ch.state.readValue()))); } catch {} }
+    });
+    await ch.state.startNotifications();           // déclenche l'appairage avec code la première fois
+    showState(JSON.parse(dec.decode(await ch.state.readValue())));
+    await send("time " + Math.floor(Date.now() / 1000), true);
+    await refresh();
     enable(true);
     setStatus("Connecté.");
     $("connect").textContent = "Connecté";
@@ -128,16 +274,39 @@ async function connect() {
   }
 }
 
-async function send(cmd) {
-  if (!cmdChar) return;
+async function send(cmd, quiet) {
+  if (!ch.cmd) return;
   try {
-    await cmdChar.writeValue(new TextEncoder().encode(cmd));
-    setStatus("Envoyé : " + cmd);
+    await ch.cmd.writeValue(enc.encode(cmd));
+    if (!quiet) setStatus("Envoyé : " + cmd);
   } catch (e) { setStatus("Échec de l'envoi : " + e.message, true); }
 }
 
+async function save() {
+  if (!info) return;
+  const changes = [];
+  for (const [name, key] of SETTINGS) {
+    const v = $("s_" + name).value.trim();
+    if (v !== String(info.cfg[key])) changes.push([name, v]);
+  }
+  if (!changes.length) { setStatus("Aucun changement."); return; }
+  // Seuils : on envoie d'abord celui qui libère la place à l'autre.
+  changes.sort((a, b) => (a[0] === "day" && +a[1] > info.cfg.day) || (a[0] === "dusk" && +a[1] < info.cfg.dusk) ? -1 : 0);
+  for (const [name, v] of changes) { await send(`set ${name} ${v}`, true); await new Promise(r => setTimeout(r, 250)); }
+  await new Promise(r => setTimeout(r, 400));
+  await readInfo();
+  drawChart();
+}
+
 $("connect").addEventListener("click", connect);
+$("reload").addEventListener("click", refresh);
+$("save").addEventListener("click", save);
+$("defaults").addEventListener("click", async () => {
+  if (!confirm("Revenir aux réglages d'origine du programme ?")) return;
+  await send("reset", true); await new Promise(r => setTimeout(r, 500)); await readInfo();
+});
 document.querySelectorAll("button[data-cmd]").forEach(b => b.addEventListener("click", () => send(b.dataset.cmd)));
+setInterval(() => { if (state && curve) drawChart(); }, 60000);
 </script>
 </body>
 </html>
