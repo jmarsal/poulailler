@@ -356,7 +356,7 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-10-21 i";
+const PAGE_VERSION = "2026-10-21 j";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -1137,7 +1137,7 @@ function scheduleRetry() {
   clearTimeout(retryTimer);
   if (!device || document.visibilityState !== "visible") return;
   retryTimer = setTimeout(() => { if (!device.gatt.connected) attach(device); }, retryDelay);
-  retryDelay = Math.min(retryDelay * 2, 10000);   // la carte n'écoute que 20 s toutes les 5 min
+  retryDelay = Math.min(retryDelay * 2, 5000);    // la carte n'écoute que 20 s toutes les 5 min
 }
 
 function adopt(dev) {
@@ -1155,6 +1155,18 @@ function adopt(dev) {
     searchSince = Date.now();
     scheduleRetry();
   });
+  watchAds(dev);
+}
+
+// Écoute des annonces Bluetooth de la carte (si le navigateur le permet) : dès
+// qu'elle se réveille et s'annonce, on se connecte, sans attendre le prochain essai.
+async function watchAds(dev) {
+  if (typeof dev.watchAdvertisements !== "function") { log("écoute des annonces : non gérée par ce navigateur"); return; }
+  dev.addEventListener("advertisementreceived", () => {
+    if (!dev.gatt.connected && !connecting) { log("annonce de la carte reçue : connexion"); retryDelay = 2000; attach(dev); }
+  });
+  try { await dev.watchAdvertisements(); log("écoute des annonces : active"); }
+  catch (e) { log("écoute des annonces impossible : " + errText(e)); }
 }
 
 async function connect() {
@@ -1180,7 +1192,8 @@ async function autoConnect() {
   try {
     const known = (await navigator.bluetooth.getDevices()).find(d => d.name === "Poulailler");
     if (known) { adopt(known); setStatus("Reconnexion au poulailler…"); attach(known); }
-  } catch {}
+    else log("reconnexion automatique : le navigateur ne se souvient d'aucune carte, touche Se connecter");
+  } catch (e) { log("reconnexion automatique impossible : " + errText(e)); }
 }
 
 // Pas de déconnexion en quittant la page : au rechargement, Bluefy garde la liaison
