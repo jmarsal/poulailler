@@ -356,7 +356,7 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-10-21 j";
+const PAGE_VERSION = "2026-10-21 k";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -1071,7 +1071,9 @@ async function attach(dev) {
   try {
     // Bluefy peut garder la liaison d'une page précédente : on la réutilise telle quelle.
     step = dev.gatt.connected ? "gatt.connect (liaison déjà ouverte)" : "gatt.connect";
-    const server = await dev.gatt.connect();
+    // Bluefy laisse parfois une connexion en suspens sans jamais répondre : 15 s au plus.
+    const server = await Promise.race([dev.gatt.connect(),
+      new Promise((_, no) => setTimeout(() => no(new Error("pas de réponse en 15 s")), 15000))]);
     step = "getPrimaryService";
     const svc = await server.getPrimaryService(SERVICE);
     step = "getCharacteristic";
@@ -1112,6 +1114,7 @@ async function attach(dev) {
     $("connect").textContent = "Connecté";
   } catch (e) {
     live = false;
+    if (e && e.message === "pas de réponse en 15 s") { try { dev.gatt.disconnect(); } catch {} }
     // Bluefy répond « 2 » tant qu'il n'a pas revu la carte (quelques secondes après
     // l'ouverture de la page, ou carte hors de portée) : on patiente sans alarmer.
     const notSeen = e === 2 && step.startsWith("gatt.connect");

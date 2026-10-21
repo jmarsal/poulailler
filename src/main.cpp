@@ -36,7 +36,7 @@
 #include "power_monitor.h"
 
 namespace {
-  constexpr const char* FIRMWARE = "2026-10-21 g";
+  constexpr const char* FIRMWARE = "2026-10-21 h";
 
   // ---- État gardé pendant le sommeil profond (mémoire RTC) ----------------
   // Le contrôleur est un objet C++ : son constructeur ne doit tourner qu'à la
@@ -268,6 +268,7 @@ namespace {
     gpio_deep_sleep_hold_en();
     if (Serial) Serial.flush();
     esp_sleep_enable_timer_wakeup((uint64_t)sleepMs * 1000ULL);
+    Clock::beforeSleep(sleepMs);
     esp_deep_sleep_start();
   }
 }

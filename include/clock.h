@@ -2,8 +2,8 @@
 // Horloges qui survivent au sommeil profond.
 //
 // En sommeil profond, la carte redémarre à chaque réveil : millis() repart de
-// zéro. On compte donc le temps avec l'horloge système (gettimeofday), que
-// l'ESP32 entretient pendant le sommeil grâce à son horloge basse consommation.
+// zéro. On garde donc en mémoire RTC le temps cumulé des éveils et des sommeils
+// programmés, sans dépendre de l'horloge système.
 //
 // - monoMs() : temps écoulé depuis la dernière mise sous tension, sans saut,
 //   même quand le téléphone remet l'heure. Sert à toute la logique (lissage,
@@ -22,6 +22,8 @@ namespace Clock {
   // (pas un réveil de sommeil profond).
   void begin(bool coldBoot);
   uint64_t monoMs();
+  // Juste avant esp_deep_sleep_start() : ajoute cet éveil et le sommeil programmé.
+  void beforeSleep(uint32_t sleepMs);
   inline uint32_t monoSec() { return (uint32_t)(monoMs() / 1000); }
   // Heure réelle donnée par le téléphone (secondes, UTC).
   void setEpoch(uint32_t epoch);
