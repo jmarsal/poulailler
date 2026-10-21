@@ -175,6 +175,7 @@
         <div><dt>Lumière</dt><dd id="fLum">?</dd></div>
         <div><dt>Seuil soir</dt><dd id="fDusk">?</dd></div>
         <div><dt>Heure</dt><dd id="fClock">?</dd></div>
+        <div id="battBox" hidden><dt>Accu</dt><dd id="fBatt">?</dd></div>
       </dl>
     </div>
     <div id="stale" class="note" hidden></div>
@@ -226,6 +227,12 @@
         <span><i style="background:var(--day)"></i>seuil jour</span>
         <span><i style="background:var(--on)"></i>rubans allumés</span>
       </div>
+    </div>
+
+    <div class="card" id="battCard" hidden>
+      <h2>Accu</h2>
+      <svg id="battChart" viewBox="0 0 340 150" aria-label="Tension de l'accu"></svg>
+      <div id="battInfo" class="note">Tension de l'accu sur la même période. En pointillés : accu bas (intérieur bridé) et critique (pas d'éclairage).</div>
     </div>
 
     <div class="card">
@@ -349,7 +356,7 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-10-20 h";
+const PAGE_VERSION = "2026-10-21 i";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -444,6 +451,8 @@ function updateHero() {
       t = `Entrée : ${ext ? `encore ${ext} min` : "éteinte"}. Intérieur : ${int ? `encore ${int} min` : "éteint"}.`;
     } else t = "Soirée en cours.";
   } else if (s.p === 3) t = "Soirée terminée. La carte se réarme au prochain jour.";
+  if (s.g === 1) t += " Accu bas : intérieur bridé ce soir.";
+  if (s.g === 2) t += " Accu trop bas : pas d'éclairage ce soir.";
   $("heroSub").textContent = t;
 }
 
@@ -455,6 +464,8 @@ function showState(s, at) {
   $("fPhase").textContent = PHASES[s.p] ?? "?";
   $("fLum").textContent = s.s;
   $("fClock").textContent = s.c || "?";
+  $("battBox").hidden = !s.b;
+  if (s.b) $("fBatt").textContent = (s.b / 1000).toFixed(2).replace(".", ",") + " V";
   $("sky").dataset.p = s.p;
   $("phaseIcon").innerHTML = PHASE_ICONS[s.p] || "";
   for (const [k, label, man] of [["i", "Int", "mi"], ["e", "Ext", "me"]]) {
@@ -473,6 +484,8 @@ function showInfo(j) {
     ["Mode", j.mode === "test" ? "test (temps accéléré)" : "réel"],
     ["En marche depuis", duration(j.u)],
     ["Démarrages", `${j.boots} (dernier : ${j.rst})`],
+    ...(j.sleep ? [["Sommeil profond", `oui, ${j.wk} réveils depuis le démarrage`]] : []),
+    ["Accu", j.ina ? (state && state.b ? `${(state.b / 1000).toFixed(2).replace(".", ",")} V, ${state.a > 0 ? "charge" : "décharge"} ${Math.abs(state.a)} mA` : "INA219 présent") : "pas de capteur (INA219 à brancher)"],
     ["Soirées", `${j.ev} depuis le démarrage`],
     ["Température puce", `${j.t} °C`],
     ["Mémoire libre", `${j.heap} ko`],
@@ -616,6 +629,30 @@ function renderChart(svg, W, H, view, infoEl, r = range) {
   return { t0, t1, L, R, W, allT0: all.t0, allT1: all.t1 };
 }
 
+// Tension de l'accu (INA219) sur la période choisie, de 3,0 à 4,3 V.
+function drawBatt() {
+  const t1 = Date.now(), t0 = range ? t1 - range * 86400000 : 0;
+  let pts = historyPoints().filter(p => p.mv > 0 && p.t >= t0);
+  $("battCard").hidden = !pts.length;
+  if (!pts.length) return;
+  if (pts.length > 1500) { const k = Math.ceil(pts.length / 1500); pts = pts.filter((_, i) => i % k === 0); }
+  const svg = $("battChart"), W = 340, H = 150, L = 34, R = 6, T = 8, B = 26;
+  const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+  const a = range ? t0 : pts[0].t;
+  const X = t => L + (t - a) / (t1 - a) * (W - L - R), Y = mv => T + (1 - (mv - 3000) / 1300) * (H - T - B);
+  let g = "";
+  for (const v of [3000, 3500, 4000]) g += `<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${col("--line")}"/><text x="${L-4}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="${col("--muted")}">${(v/1000).toFixed(1).replace(".", ",")}</text>`;
+  g += `<line x1="${L}" x2="${W-R}" y1="${Y(3550)}" y2="${Y(3550)}" stroke="${col("--on")}" stroke-dasharray="4 3"/>`;
+  g += `<line x1="${L}" x2="${W-R}" y1="${Y(3400)}" y2="${Y(3400)}" stroke="${col("--warn")}" stroke-dasharray="4 3"/>`;
+  const span = t1 - a, d0 = new Date(a), lab = span > 1.5 * 86400000;
+  for (let i = 0; i <= 4; i++) { const t = a + span * i / 4, d = new Date(t);
+    g += `<text x="${X(t)}" y="${H-8}" text-anchor="${i === 0 ? "start" : i === 4 ? "end" : "middle"}" font-size="10" fill="${col("--muted")}">${lab ? `${d.getDate()}/${d.getMonth() + 1}` : hhmm(d)}</text>`; }
+  g += `<polyline fill="none" stroke="${col("--day")}" stroke-width="1.6" points="${pts.map(p => `${X(p.t).toFixed(1)},${Y(Math.min(4300, Math.max(3000, p.mv))).toFixed(1)}`).join(" ")}"/>`;
+  svg.innerHTML = g;
+  const last = pts[pts.length - 1];
+  $("battInfo").textContent = `Dernière mesure : ${(last.mv / 1000).toFixed(2).replace(".", ",")} V${last.ma !== -32768 ? `, ${last.ma > 0 ? "charge" : "décharge"} ${Math.abs(last.ma)} mA` : ""} (${dayLabel(new Date(last.t))} ${hhmm(new Date(last.t))}). En pointillés : accu bas et critique.`;
+}
+
 function drawChart() {
   $("chartTitle").textContent = chartTitle();
   document.querySelectorAll("#range button").forEach(b => b.classList.toggle("sel", +b.dataset.r === range));
@@ -625,6 +662,7 @@ function drawChart() {
   const mini = $("mini");
   renderChart(mini, 340, 120, null, $("miniInfo"), 1);
   mini.onpointerdown = mini.onpointermove = ev => mini.__pick(ev.clientX);
+  drawBatt();
   if (full.open) drawFull();
 }
 
@@ -743,7 +781,7 @@ function fromB64(b) { const s = atob(b || ""); const u = new Uint8Array(s.length
 function loadStore() {
   try {
     const o = JSON.parse(localStorage.getItem(DATA_KEY) || "null");
-    if (o) { store = { next: o.next || 0, syncedAt: o.syncedAt || 0, remote: !!o.remote }; raw = fromB64(o.data); }
+    if (o) { store = { next: o.next || 0, syncedAt: o.syncedAt || 0, remote: !!o.remote, syncs: o.syncs || [] }; raw = fromB64(o.data); }
   } catch (e) { log("ERREUR lecture de l'historique du téléphone : " + errText(e)); }
 }
 function saveStore() {
@@ -762,6 +800,17 @@ function decodeRecords() {
 }
 // Heure de chaque mesure : l'heure réelle si la carte la connaissait ; sinon on la
 // déduit d'une autre mesure du même démarrage qui, elle, a l'heure.
+// Dérive de l'horloge de la carte : à chaque connexion, on note l'heure de la carte
+// (b) et la vraie heure (r) juste avant de la remettre à l'heure. Entre deux
+// connexions, l'écart grandit à peu près régulièrement : on le répartit.
+function fixEpoch(e) {
+  const S = store.syncs || [];
+  for (let k = 1; k < S.length; k++) {
+    const R0 = S[k - 1].r, B1 = S[k].b, R1 = S[k].r;
+    if (e >= R0 && e <= B1 && B1 > R0) return R0 + (e - R0) * (R1 - R0) / (B1 - R0);
+  }
+  return e;
+}
 function historyPoints() {
   if (histCache) return histCache;
   const recs = decodeRecords(), anchor = new Map();
@@ -770,7 +819,8 @@ function historyPoints() {
   const pts = [];
   for (const r of recs) {
     const a = anchor.get(r.boot);
-    const t = r.epoch ? r.epoch * 1000 : a ? (a.epoch + (r.up - a.up)) * 1000 : (r.boot === curBoot && state ? +toDate(r.up) : 0);
+    const e = r.epoch ? r.epoch : a ? a.epoch + (r.up - a.up) : 0;
+    const t = e ? fixEpoch(e) * 1000 : (r.boot === curBoot && state ? +toDate(r.up) : 0);
     if (t) pts.push({ ...r, t });
   }
   pts.sort((x, y) => x.t - y.t);
@@ -844,7 +894,7 @@ async function ghPush(force) {
     if (raw.length > gh.up) for (let k = first; k <= last; k++)
       await ghPut(`mesures/${k}.bin`, raw.subarray(k * CHUNK_BYTES, Math.min(raw.length, (k + 1) * CHUNK_BYTES)), `mesures : +${n}`);
     gh.up = raw.length;
-    const meta = { version: 1, updatedAt: Date.now(), bytes: raw.length, chunkBytes: CHUNK_BYTES, state, stateAt, info, curve, syncedAt: store.syncedAt };
+    const meta = { version: 1, updatedAt: Date.now(), bytes: raw.length, chunkBytes: CHUNK_BYTES, state, stateAt, info, curve, syncedAt: store.syncedAt, syncs: store.syncs || [] };
     await ghPut("meta.json", enc.encode(JSON.stringify(meta)), "état");
     gh.at = Date.now(); saveGh();
     log(`partage : ${n > 0 ? n + " mesure(s) et " : ""}état envoyés sur GitHub`);
@@ -876,6 +926,7 @@ async function loadRemote() {
     raw = merged; store.syncedAt = meta.syncedAt || meta.updatedAt; store.remote = true; histCache = null; saveStore();
     curve = meta.curve || curve;
     if (meta.state) showState(meta.state, meta.stateAt);
+    store.syncs = meta.syncs || store.syncs || []; saveStore(); histCache = null;
     if (meta.info) showInfo(meta.info);
     remoteAt = meta.updatedAt;
     markStale(meta.updatedAt);
@@ -1039,7 +1090,15 @@ async function attach(dev) {
     const first = dec.decode(await ch.state.readValue());
     if (!first.startsWith("{")) throw new Error("l'état reçu n'est pas du JSON : l'iPhone garde en mémoire l'ancienne liste des fonctions de la carte. Réglages > Bluetooth > Poulailler > Oublier cet appareil, puis Se connecter");
     showState(JSON.parse(first));
-    await send("time " + Math.floor(Date.now() / 1000), true);
+    // Écart d'horloge avant remise à l'heure : sert à corriger les mesures depuis la dernière fois.
+    const s0 = state, real = Math.floor(Date.now() / 1000);
+    if (s0 && s0.t > 1700000000) {
+      const drift = s0.t + Math.round((Date.now() - stateAt) / 1000) - real;
+      store.syncs = (store.syncs || []).concat([{ b: real + drift, r: real }]).slice(-500);
+      if (Math.abs(drift) > 5) log(`horloge de la carte : ${drift > 0 ? "+" : ""}${drift} s d'écart, mesures corrigées`);
+    } else store.syncs = (store.syncs || []).concat([{ b: real, r: real }]).slice(-500);
+    saveStore(); histCache = null;
+    await send("time " + real, true);
     await refresh();
     enable(true);
     retryDelay = 2000;
@@ -1056,10 +1115,13 @@ async function attach(dev) {
     // Bluefy répond « 2 » tant qu'il n'a pas revu la carte (quelques secondes après
     // l'ouverture de la page, ou carte hors de portée) : on patiente sans alarmer.
     const notSeen = e === 2 && step.startsWith("gatt.connect");
-    if (notSeen && Date.now() - searchSince < 30000) {
-      log("connexion : carte pas encore trouvée par Bluefy (valeur brute 2), nouvel essai");
-      setLink("wait", "recherche…");
-      setStatus("Recherche de la carte…");
+    if (notSeen) {
+      // Valeur brute 2 : Bluefy ne voit pas la carte. Elle dort sans doute : elle
+      // écoute 20 s toutes les 5 minutes. On réessaie toutes les 10 s, sans alarmer.
+      const waited = Math.round((Date.now() - searchSince) / 1000);
+      log(`connexion : carte pas trouvée (valeur brute 2), nouvel essai — ${waited} s d'attente`);
+      setLink("wait", waited < 30 ? "recherche…" : "carte endormie…");
+      setStatus(waited < 30 ? "Recherche de la carte…" : `La carte dort entre deux mesures : connexion à son prochain réveil (au plus 5 min). Attente depuis ${waited} s.`);
     } else {
       setLink("", "hors de portée");
       setStatus("Pas de connexion, étape " + step + " (" + errText(e) + "). Nouvel essai automatique, ou touche Se connecter.", true);
@@ -1075,7 +1137,7 @@ function scheduleRetry() {
   clearTimeout(retryTimer);
   if (!device || document.visibilityState !== "visible") return;
   retryTimer = setTimeout(() => { if (!device.gatt.connected) attach(device); }, retryDelay);
-  retryDelay = Math.min(retryDelay * 2, 30000);
+  retryDelay = Math.min(retryDelay * 2, 10000);   // la carte n'écoute que 20 s toutes les 5 min
 }
 
 function adopt(dev) {

@@ -2,7 +2,8 @@
 // Mémoire des dernières 24 h, pour le téléphone :
 //   - la courbe : valeur lissée du capteur à intervalle régulier, avec l'état des rubans ;
 //   - le journal : début et fin des dernières soirées.
-// Les instants sont comptés en secondes depuis le démarrage de la carte :
+// Les instants sont comptés en secondes depuis la mise sous tension (sommeils
+// profonds compris) ; le tout est gardé en mémoire RTC pendant le sommeil :
 // le téléphone les convertit en heures réelles avec sa propre horloge.
 
 #pragma once

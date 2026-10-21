@@ -132,6 +132,37 @@ constexpr uint32_t    BOOT_HOLD_MS    = 3000;
 constexpr uint32_t    MANUAL_MAX_MS   = 15 * MIN;
 
 // ---------------------------------------------------------------------------
+// Sommeil profond (économie d'énergie)
+// ---------------------------------------------------------------------------
+// Hors soirée, la carte dort entre deux mesures (LIGHT_PERIOD_MS) : moins de 1 mA
+// en moyenne au lieu d'environ 40. Elle reste éveillée :
+//   - pendant toute la soirée d'éclairage (elle pilote les rubans) ;
+//   - pendant une fenêtre Bluetooth de BLE_WINDOW_MS toutes les BLE_WINDOW_EVERY_MS,
+//     et tant qu'un téléphone est connecté ;
+//   - BLE_AFTER_BOOT_MS après une mise sous tension (installation, câble).
+// Pour programmer par câble une carte endormie : maintenir BOOT, appuyer sur
+// RESET (ou brancher l'USB-C), relâcher BOOT, puis lancer l'envoi.
+// Désactivé en temps accéléré (FAST_TEST).
+constexpr bool     ENABLE_DEEP_SLEEP   = !FAST_TEST;
+constexpr uint32_t BLE_WINDOW_MS       = 20000;       // fenêtre de connexion : 20 s
+constexpr uint32_t BLE_WINDOW_EVERY_MS = 5 * MIN;     // … toutes les 5 min
+constexpr uint32_t BLE_AFTER_BOOT_MS   = 3 * MIN;     // après une mise sous tension
+
+// ---------------------------------------------------------------------------
+// Accu (module INA219, facultatif : sans lui, ces règles ne s'appliquent pas)
+// ---------------------------------------------------------------------------
+// Décidé au début de chaque soirée, sur la tension mesurée rubans éteints :
+//   - au-dessus de BATT_LOW_MV : soirée normale ;
+//   - entre les deux : l'entrée garde sa durée (elle retient la porte), l'intérieur
+//     est bridé à BATT_LOW_INTERIOR ;
+//   - sous BATT_CRITICAL_MV : rien ne s'allume, la carte se contente de mesurer.
+// Pendant la soirée, sous BATT_CUTOFF_MV (tension sous charge), tout s'éteint.
+constexpr uint16_t BATT_LOW_MV       = 3550;
+constexpr uint16_t BATT_CRITICAL_MV  = 3400;
+constexpr uint16_t BATT_CUTOFF_MV    = 3250;
+constexpr float    BATT_LOW_INTERIOR = 0.5f;
+
+// ---------------------------------------------------------------------------
 // Historique (courbe de lumière et journal des soirées, en mémoire vive)
 // ---------------------------------------------------------------------------
 // 240 points espacés de 6 min = 24 h de courbe. Perdu en cas de redémarrage.

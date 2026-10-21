@@ -1,18 +1,20 @@
 // history.cpp
 #include "history.h"
 #include "config.h"
-#include <esp_timer.h>
+#include <esp_attr.h>
+#include "clock.h"
 
 namespace {
-  uint16_t points[HISTORY_POINTS];
-  uint16_t count = 0, head = 0;          // head : prochaine case à écrire
-  uint32_t lastSampleSec = 0;
-  bool haveSample = false;
+  // En mémoire RTC : gardé pendant le sommeil profond, effacé à la mise sous tension.
+  RTC_DATA_ATTR uint16_t points[HISTORY_POINTS];
+  RTC_DATA_ATTR uint16_t count = 0, head = 0;          // head : prochaine case à écrire
+  RTC_DATA_ATTR uint32_t lastSampleSec = 0;
+  RTC_DATA_ATTR bool haveSample = false;
 
   struct Evening { uint32_t start, end; uint16_t value; };
-  Evening journal[JOURNAL_EVENINGS];
-  uint8_t jCount = 0, jHead = 0;
-  uint16_t evenings = 0;
+  RTC_DATA_ATTR Evening journal[JOURNAL_EVENINGS];
+  RTC_DATA_ATTR uint8_t jCount = 0, jHead = 0;
+  RTC_DATA_ATTR uint16_t evenings = 0;
 
   void put16(uint8_t* p, uint16_t v) { p[0] = v & 0xFF; p[1] = v >> 8; }
   void put32(uint8_t* p, uint32_t v) { for (int i = 0; i < 4; ++i) p[i] = (v >> (8 * i)) & 0xFF; }
@@ -20,7 +22,8 @@ namespace {
 
 namespace History {
 
-uint32_t uptimeSec() { return (uint32_t)(esp_timer_get_time() / 1000000ULL); }
+// Secondes depuis la mise sous tension, sommeils profonds compris.
+uint32_t uptimeSec() { return Clock::monoSec(); }
 
 bool sample(float smoothed, bool interiorOn, bool exteriorOn) {
   const uint32_t now = uptimeSec();
