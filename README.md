@@ -11,11 +11,13 @@ Pour le câblage pas à pas avec schémas, voir la page « Notice du banc d'essa
 |---|---|
 | `include/config.h` | Tous les réglages : broches, seuils, durées, mode temps accéléré |
 | `lib/dusk_controller/` | Logique du crépuscule, sans matériel, testée sur le Mac |
+| `lib/sun/` | Heure du coucher du soleil, calculée sur place, testée sur le Mac |
 | `src/light_sensor.*` | KY-018, alimenté seulement pendant la mesure, moyenne de 16 lectures |
 | `src/lighting.*` | PWM vers les deux modules MOSFET D4184 (intérieur, extérieur), correction gamma |
 | `src/status_led.*` | LED bleue de la carte, témoin |
 | `src/main.cpp` | Relie capteur, logique, sortie PWM et LED |
 | `test/test_dusk/` | Tests de la logique du crépuscule |
+| `test/test_sun/` | Tests du coucher du soleil, contre des valeurs de référence indépendantes |
 
 ## Commandes
 
@@ -23,6 +25,7 @@ Pour le câblage pas à pas avec schémas, voir la page « Notice du banc d'essa
 pio run -t upload        # compiler et envoyer sur la carte
 pio device monitor       # moniteur série (Ctrl+C pour quitter)
 pio test -e native       # tests de la logique, sur le Mac, sans la carte
+pio run -e eveil -t upload  # version de dépannage : sans sommeil, jour confirmé en 1 min
 ```
 
 ## Détection du crépuscule
@@ -43,9 +46,24 @@ pleine lumière, baisse, extinction. La soirée se termine quand la dernière so
 5 s de noir pour allumer ; extérieur 15 s ; intérieur 15 s plein puis 15 s de baisse ;
 verrou de 50 s ; 5 s de lumière pour réarmer.
 
-Limite connue : sans horloge, un orage très sombre en fin d'après-midi pourrait
-déclencher l'éclairage en avance. Les 10 minutes de confirmation et le lissage
-de 5 minutes réduisent ce risque sans l'annuler.
+## Règles calées sur le coucher du soleil (version i)
+
+La carte calcule l'heure du coucher du soleil (`lib/sun`, à deux minutes près
+toute l'année) à partir de la date et des coordonnées de `config.h`. Quand elle
+connaît l'heure réelle, trois règles s'ajoutent (`SOLAR_CONFIG`) :
+
+- **Fenêtre** : la lumière ne lance la soirée qu'à partir de 20 min avant le
+  coucher. Un après-midi d'orage ne déclenche rien ; si le noir dure, la soirée
+  part dès l'ouverture de la fenêtre.
+- **Sécurité** : si le capteur n'a rien vu, la soirée part quand même à
+  coucher + 15 min (jusqu'à coucher + 60 min).
+- **Allongement** : l'entrée reste allumée, et l'intérieur en pleine lumière,
+  au moins jusqu'à coucher + 30 min. Un soir gris qui déclenche tôt ne laisse
+  plus la porte se fermer trop tôt. Jamais plus d'une heure d'allongement.
+
+Sans heure connue (carte redémarrée sans connexion du téléphone), ces règles
+sont ignorées et la lumière décide seule, comme avant. Une soirée lancée à la
+main n'est jamais allongée.
 
 ## Brochage de la carte (vue de dessus, USB-C à gauche)
 

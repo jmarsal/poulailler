@@ -356,7 +356,7 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-10-21 k";
+const PAGE_VERSION = "2026-11-03 l";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
 const $ = id => document.getElementById(id);
@@ -442,12 +442,22 @@ function updateHero() {
   $("fDusk").textContent = cfg ? cfg.dusk : "?";
   let t = "";
   if (s.p === 0) t = "La carte s'arme après 15 minutes de vrai jour.";
-  else if (s.p === 1) t = cfg ? (s.s > cfg.dusk ? `Allumage quand la lumière passera sous ${cfg.dusk}.` : `Sous le seuil : allumage d'ici quelques minutes s'il reste sombre.`) : "Prête pour ce soir.";
+  else if (s.p === 1) {
+    t = cfg ? (s.s > cfg.dusk ? `Allumage quand la lumière passera sous ${cfg.dusk}.` : `Sous le seuil : allumage d'ici quelques minutes s'il reste sombre.`) : "Prête pour ce soir.";
+    // Carte version i et suivantes : coucher du soleil calculé par la carte.
+    const ss = info && info.sun && info.sun[0];
+    if (ss) {
+      const set = new Date(ss * 1000), open = new Date((ss - 20 * 60) * 1000);
+      t += ` Coucher du soleil à ${hhmm(set)} : pas d'allumage avant ${hhmm(open)}.`;
+    }
+  }
   else if (s.p === 2) {
     const cur = info && info.j && info.j.length ? info.j[info.j.length - 1] : null;
     if (cur && !cur[1] && cfg) {
       const el = (uptimeNow() - cur[0]) / 60;
-      const ext = Math.max(0, Math.ceil(cfg.eh - el)), int = Math.max(0, Math.ceil(cfg.ih + cfg.if - el));
+      // Allongements de ce soir, calés sur le coucher du soleil (carte version i).
+      const xe = info.sun ? info.sun[1] : 0, xi = info.sun ? info.sun[2] : 0;
+      const ext = Math.max(0, Math.ceil(cfg.eh + xe - el)), int = Math.max(0, Math.ceil(cfg.ih + xi + cfg.if - el));
       t = `Entrée : ${ext ? `encore ${ext} min` : "éteinte"}. Intérieur : ${int ? `encore ${int} min` : "éteint"}.`;
     } else t = "Soirée en cours.";
   } else if (s.p === 3) t = "Soirée terminée. La carte se réarme au prochain jour.";

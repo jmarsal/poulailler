@@ -29,6 +29,7 @@
 #include "light_sensor.h"
 #include "lighting.h"
 #include "dusk_controller.h"
+#include "sun.h"
 #include "ble_control.h"
 #include "settings.h"
 #include "history.h"
@@ -36,7 +37,11 @@
 #include "power_monitor.h"
 
 namespace {
-  constexpr const char* FIRMWARE = "2026-10-21 h";
+#ifdef SANS_SOMMEIL
+  constexpr const char* FIRMWARE = "2026-11-03 i essai";   // pio run -e eveil
+#else
+  constexpr const char* FIRMWARE = "2026-11-03 i";
+#endif
 
   // ---- État gardé pendant le sommeil profond (mémoire RTC) ----------------
   // Le contrôleur est un objet C++ : son constructeur ne doit tourner qu'à la
@@ -116,6 +121,35 @@ namespace {
     Serial.printf("     %s\n", msg.c_str());
   }
 
+  // Coucher du soleil du jour, si l'heure réelle est connue (recalculé une fois par jour).
+  uint32_t sunsetToday() {
+    if (!Clock::epochKnown()) return 0;
+    static uint32_t day = UINT32_MAX, sunset = 0;
+    const uint32_t e = Clock::epoch();
+    if (e / 86400 != day) {
+      day = e / 86400;
+      sunset = sun::sunsetUtc(e, SITE_LATITUDE, SITE_LONGITUDE);
+    }
+    return sunset;
+  }
+
+  dusk::SunClock sunClock() {
+    const uint32_t s = sunsetToday();
+    if (!s) return dusk::SunClock{false, 0};
+    return dusk::SunClock{true, (int32_t)((int64_t)Clock::epoch() - (int64_t)s)};
+  }
+
+  // Heure locale d'un instant UTC, « HH:MM » (vide si inconnu).
+  String localHhmm(uint32_t epochUtc) {
+    if (!epochUtc) return "";
+    time_t t = epochUtc;
+    struct tm lt;
+    localtime_r(&t, &lt);
+    char buf[8];
+    strftime(buf, sizeof(buf), "%H:%M", &lt);
+    return String(buf);
+  }
+
   // Accu au moment où la soirée commence (rubans encore éteints) : règle de la soirée.
   void decideBatteryGuard() {
     battGuard = 0;
@@ -131,6 +165,11 @@ namespace {
     String clk = clockText();
     Serial.printf("---- %s (à %lu s%s%s)\n", dusk::phaseName(controller.phase()),
                   (unsigned long)(now / 1000), clk.length() ? ", " : "", clk.c_str());
+    if (evening() && (controller.extensionMs(dusk::Output::Exterior) || controller.extensionMs(dusk::Output::Interior)))
+      Serial.printf("     allongé jusqu'au coucher du soleil (%s) : entrée +%lu min, intérieur +%lu min\n",
+                    localHhmm(sunsetToday()).c_str(),
+                    (unsigned long)(controller.extensionMs(dusk::Output::Exterior) / 60000),
+                    (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000));
     if (evening()) { History::eveningStart(controller.smoothed()); decideBatteryGuard(); }
     if (controller.phase() == dusk::Phase::Night) History::eveningEnd();
   }
@@ -165,7 +204,12 @@ namespace {
     char lg[48];
     snprintf(lg, sizeof(lg), "\"lg\":[%lu,%lu,%d],", (unsigned long)DataLog::firstSeq(),
              (unsigned long)DataLog::nextSeq(), DataLog::ok() ? 1 : 0);
-    return String(head) + lg + "\"cfg\":" + Settings::toJson(cfg) + ",\"j\":" + History::journalJson() + "}";
+    // Soleil : coucher du jour (UTC, 0 si heure inconnue), allongements de ce soir (min).
+    char sn[64];
+    snprintf(sn, sizeof(sn), "\"sun\":[%lu,%lu,%lu],", (unsigned long)sunsetToday(),
+             (unsigned long)(controller.extensionMs(dusk::Output::Exterior) / 60000),
+             (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000));
+    return String(head) + lg + sn + "\"cfg\":" + Settings::toJson(cfg) + ",\"j\":" + History::journalJson() + "}";
   }
 
   void refreshCurve() {
@@ -306,6 +350,7 @@ void setup() {
 
   cfg = Settings::load();
   controller.setConfig(cfg);
+  controller.setSolar(SOLAR_CONFIG);
 
   if (cold) {
     Serial.println();
@@ -350,7 +395,7 @@ void loop() {
     PowerMonitor::read();
     LightSensor::Reading r = LightSensor::read();
     lastRaw = r.raw;
-    const bool changed = controller.update(now, r.raw);
+    const bool changed = controller.update(now, r.raw, sunClock());
     if (changed) printTransition(now);
     if (Serial) {
       const PowerMonitor::Reading b = PowerMonitor::last();

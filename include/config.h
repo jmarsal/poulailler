@@ -77,12 +77,20 @@ constexpr dusk::Config DUSK_FAST = {
   /* exterior      */ { 2000, 15000,  1000, 0.5f },   // 15 s, puis extinction en 1 s
 };
 
+// Confirmation du jour avant de réarmer. Version d'essai (pio run -e eveil) :
+// 1 min au lieu de 15, pour qu'une carte redémarrée en journée s'arme vite.
+#ifdef SANS_SOMMEIL
+constexpr uint32_t DAY_CONFIRM_MS = 1 * MIN;
+#else
+constexpr uint32_t DAY_CONFIRM_MS = 15 * MIN;
+#endif
+
 constexpr dusk::Config DUSK_REAL = {
   /* duskThreshold */ 1000,          // à régler au poulailler
   /* dayThreshold  */ 2500,          // à régler au poulailler
   /* smoothingMs   */ 5 * MIN,
   /* duskConfirmMs */ 10 * MIN,      // 10 min sous le seuil
-  /* dayConfirmMs  */ 15 * MIN,      // 15 min au-dessus du seuil de jour
+  /* dayConfirmMs  */ DAY_CONFIRM_MS, // 15 min au-dessus du seuil de jour (1 min en essai)
   /* minNightMs    */ 8 * 60 * MIN,  // pas de réarmement avant 8 h
   // Intensité max de l'intérieur : 1.0 pour 60 cm de ruban (environ 0,32 A).
   // Avec 1 m de ruban, passer à 0.6f : lumière plus étalée, environ 0,16 A.
@@ -91,6 +99,27 @@ constexpr dusk::Config DUSK_REAL = {
 };
 
 constexpr dusk::Config DUSK_CONFIG     = FAST_TEST ? DUSK_FAST : DUSK_REAL;
+
+// ---------------------------------------------------------------------------
+// Règles calées sur le coucher du soleil (version i, 3 novembre)
+// ---------------------------------------------------------------------------
+// La carte calcule elle-même l'heure du coucher (lib/sun) à partir de la date
+// et de ces coordonnées. Elle ne s'en sert que si elle connaît l'heure réelle
+// (donnée par le téléphone, plus tard par une horloge DS3231 ou le WiFi) ;
+// sinon la lumière décide seule, comme avant.
+constexpr double SITE_LATITUDE  = 48.95;   // poulailler, près d'Évreux (à 10 km près : moins d'une minute)
+constexpr double SITE_LONGITUDE = 1.25;    // degrés, positif vers l'est
+
+// Minutes relatives au coucher du soleil. Désactivé en temps accéléré.
+constexpr dusk::SolarConfig SOLAR_CONFIG = {
+  /* enabled              */ !FAST_TEST,
+  /* windowBeforeMin      */ 20,   // la lumière ne lance la soirée qu'à partir de coucher - 20
+  /* fallbackAfterMin     */ 15,   // soirée quand même à coucher + 15 si le capteur n'a rien vu…
+  /* windowAfterMin       */ 60,   // … et jusqu'à coucher + 60 seulement
+  /* exteriorUntilMin     */ 30,   // entrée allumée au moins jusqu'à coucher + 30
+  /* interiorFullUntilMin */ 30,   // intérieur en pleine lumière au moins jusqu'à coucher + 30
+  /* maxExtensionMin      */ 60,   // jamais plus d'une heure d'allongement (renards)
+};
 // Intervalle entre deux mesures de lumière.
 constexpr uint32_t     LIGHT_PERIOD_MS = FAST_TEST ? 500 : 30000;
 
@@ -143,7 +172,11 @@ constexpr uint32_t    MANUAL_MAX_MS   = 15 * MIN;
 // Pour programmer par câble une carte endormie : maintenir BOOT, appuyer sur
 // RESET (ou brancher l'USB-C), relâcher BOOT, puis lancer l'envoi.
 // Désactivé en temps accéléré (FAST_TEST).
+#ifdef SANS_SOMMEIL
+constexpr bool     ENABLE_DEEP_SLEEP   = false;       // pio run -e eveil : carte toujours éveillée (dépannage)
+#else
 constexpr bool     ENABLE_DEEP_SLEEP   = !FAST_TEST;
+#endif
 constexpr uint32_t BLE_WINDOW_MS       = 20000;       // fenêtre de connexion : 20 s
 constexpr uint32_t BLE_WINDOW_EVERY_MS = 5 * MIN;     // … toutes les 5 min
 constexpr uint32_t BLE_AFTER_BOOT_MS   = 3 * MIN;     // après une mise sous tension

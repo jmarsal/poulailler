@@ -28,10 +28,34 @@ float profileLevel(const Profile& p, uint32_t elapsed) {
 
 Controller::Controller(const Config& cfg) : cfg_(cfg) {}
 
+Profile Controller::effective(Output out) const {
+  Profile p = out == Output::Interior ? cfg_.interior : cfg_.exterior;
+  p.holdMs += extensionMs(out);
+  return p;
+}
+
 uint32_t Controller::eveningMs() const {
-  const uint32_t in = cfg_.interior.holdMs + cfg_.interior.fadeOutMs;
-  const uint32_t out = cfg_.exterior.holdMs + cfg_.exterior.fadeOutMs;
+  const Profile pin = effective(Output::Interior), pout = effective(Output::Exterior);
+  const uint32_t in = pin.holdMs + pin.fadeOutMs;
+  const uint32_t out = pout.holdMs + pout.fadeOutMs;
   return in > out ? in : out;
+}
+
+void Controller::trigger(uint32_t nowMs, const SunClock& sun) {
+  triggerAt_ = nowMs;
+  extExtMs_ = intExtMs_ = 0;
+  if (useSun(sun)) {
+    // Combien de temps chaque sortie doit tenir pour atteindre coucher + N.
+    const int64_t maxMs = (int64_t)solar_.maxExtensionMin * 60000;
+    auto extension = [&](int16_t untilMin, uint32_t holdMs) -> uint32_t {
+      const int64_t wanted = ((int64_t)untilMin * 60 - sun.secFromSunset) * 1000 - holdMs;
+      if (wanted <= 0) return 0;
+      return (uint32_t)(wanted < maxMs ? wanted : maxMs);
+    };
+    extExtMs_ = extension(solar_.exteriorUntilMin, cfg_.exterior.holdMs);
+    intExtMs_ = extension(solar_.interiorFullUntilMin, cfg_.interior.holdMs);
+  }
+  enter(Phase::Evening, nowMs);
 }
 
 void Controller::enter(Phase p, uint32_t nowMs) {
@@ -54,6 +78,10 @@ bool Controller::confirmed(bool cond, uint32_t nowMs, uint32_t durationMs) {
 }
 
 bool Controller::update(uint32_t nowMs, uint16_t raw) {
+  return update(nowMs, raw, SunClock{false, 0});
+}
+
+bool Controller::update(uint32_t nowMs, uint16_t raw, const SunClock& sun) {
   // Lissage exponentiel : chaque mesure tire la moyenne vers elle,
   // d'autant plus fort que le temps écoulé est long devant la constante.
   if (!haveSample_) {
@@ -84,12 +112,18 @@ bool Controller::update(uint32_t nowMs, uint16_t raw) {
       }
       break;
     }
-    case Phase::Day:
-      if (confirmed(smooth_ <= cfg_.duskThreshold, nowMs, cfg_.duskConfirmMs)) {
-        triggerAt_ = nowMs;
-        enter(Phase::Evening, nowMs);
-      }
+    case Phase::Day: {
+      // Le noir se confirme comme d'habitude, même avant la fenêtre : si un
+      // orage dure jusqu'à son ouverture, la soirée part aussitôt.
+      const bool dark = confirmed(smooth_ <= cfg_.duskThreshold, nowMs, cfg_.duskConfirmMs);
+      const bool sunKnown = useSun(sun);
+      const bool windowOpen = !sunKnown || sun.secFromSunset >= -(int32_t)solar_.windowBeforeMin * 60;
+      const bool fallback = sunKnown
+          && sun.secFromSunset >= (int32_t)solar_.fallbackAfterMin * 60
+          && sun.secFromSunset <= (int32_t)solar_.windowAfterMin * 60;
+      if ((dark && windowOpen) || fallback) trigger(nowMs, sun);
       break;
+    }
     case Phase::Evening:
       break;   // minutée, gérée par tick()
   }
@@ -107,14 +141,13 @@ bool Controller::tick(uint32_t nowMs) {
 }
 
 void Controller::startEvening(uint32_t nowMs) {
-  triggerAt_ = nowMs;
-  enter(Phase::Evening, nowMs);
+  // Soirée à la main : durées réglées telles quelles, sans allongement.
+  trigger(nowMs, SunClock{false, 0});
 }
 
 float Controller::level(Output out, uint32_t nowMs) const {
   if (phase_ != Phase::Evening) return 0.0f;
-  const Profile& p = out == Output::Interior ? cfg_.interior : cfg_.exterior;
-  return profileLevel(p, nowMs - triggerAt_);
+  return profileLevel(effective(out), nowMs - triggerAt_);
 }
 
 }  // namespace dusk

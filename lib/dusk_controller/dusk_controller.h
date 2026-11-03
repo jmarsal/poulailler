@@ -32,6 +32,17 @@
 //   phares, ne peut donc pas faire croire au retour du jour.
 // - Hystérésis : le seuil de jour est nettement au-dessus du seuil de
 //   crépuscule, et chaque franchissement doit durer pour être pris en compte.
+//
+// Règles calées sur le soleil (SolarConfig), seulement si l'heure est connue :
+// - Fenêtre : la lumière ne peut lancer la soirée qu'à partir de quelques
+//   minutes avant le coucher du soleil. Un après-midi d'orage ne déclenche
+//   rien ; si le noir dure, la soirée part dès l'ouverture de la fenêtre.
+// - Sécurité : si le capteur n'a rien vu un peu après le coucher (panne,
+//   capteur ébloui), la soirée part quand même.
+// - Allongement : l'entrée reste allumée au moins jusqu'à une heure donnée
+//   après le coucher, et l'intérieur en pleine lumière de même. Un soir gris
+//   qui déclenche tôt ne laisse plus la porte se fermer trop tôt.
+// Sans heure connue, ces règles sont ignorées : la lumière décide seule.
 
 #pragma once
 #include <cstdint>
@@ -52,6 +63,27 @@ struct Profile {
   float maxLevel;      // pleine lumière, de 0.0 à 1.0 (pour brider un ruban trop fort)
 };
 
+// Heure du coucher du soleil, quand la carte connaît l'heure réelle.
+// secFromSunset : maintenant moins le coucher du jour (en secondes), négatif
+// avant le coucher. known = false : heure inconnue, la lumière décide seule.
+struct SunClock {
+  bool known;
+  int32_t secFromSunset;
+};
+
+// Règles calées sur le coucher du soleil (minutes, relatives au coucher).
+// Elles ne s'appliquent que si l'heure est connue ; sinon, comportement de
+// toujours : la lumière seule.
+struct SolarConfig {
+  bool enabled;
+  int16_t windowBeforeMin;      // pas de soirée par la lumière avant coucher - N (orages)
+  int16_t fallbackAfterMin;     // soirée quand même à coucher + N si le capteur n'a rien vu…
+  int16_t windowAfterMin;       // … jusqu'à coucher + N (au-delà, plus de soirée forcée)
+  int16_t exteriorUntilMin;     // entrée allumée au moins jusqu'à coucher + N
+  int16_t interiorFullUntilMin; // intérieur en pleine lumière au moins jusqu'à coucher + N
+  int16_t maxExtensionMin;      // allongement maximal d'une sortie par ces règles
+};
+
 struct Config {
   uint16_t duskThreshold;  // valeur lissée en dessous de laquelle c'est le crépuscule
   uint16_t dayThreshold;   // valeur lissée au-dessus de laquelle c'est le jour (> duskThreshold)
@@ -69,6 +101,17 @@ class Controller {
 
   // À appeler à chaque mesure. Renvoie true si la phase a changé.
   bool update(uint32_t nowMs, uint16_t raw);
+  // Même chose, avec l'heure du coucher du soleil quand elle est connue.
+  bool update(uint32_t nowMs, uint16_t raw, const SunClock& sun);
+
+  // Règles calées sur le soleil (désactivées par défaut).
+  void setSolar(const SolarConfig& s) { solar_ = s; }
+  const SolarConfig& solar() const { return solar_; }
+
+  // Allongement appliqué ce soir à une sortie par les règles du soleil (ms).
+  uint32_t extensionMs(Output out) const {
+    return out == Output::Interior ? intExtMs_ : extExtMs_;
+  }
 
   // À appeler souvent (dans loop) : termine la soirée entre deux mesures.
   // Renvoie true si la phase a changé.
@@ -94,8 +137,14 @@ class Controller {
   void enter(Phase p, uint32_t nowMs);
   bool confirmed(bool cond, uint32_t nowMs, uint32_t durationMs);
   uint32_t eveningMs() const;   // durée de la soirée : jusqu'à l'extinction de la dernière sortie
+  bool useSun(const SunClock& sun) const { return solar_.enabled && sun.known; }
+  void trigger(uint32_t nowMs, const SunClock& sun);
+  Profile effective(Output out) const;   // profil de ce soir, allongement compris
 
   Config cfg_;
+  SolarConfig solar_ = {false, 0, 0, 0, 0, 0, 0};
+  uint32_t extExtMs_ = 0;   // allongement de l'entrée ce soir
+  uint32_t intExtMs_ = 0;   // allongement de la pleine lumière intérieure ce soir
   Phase phase_ = Phase::WaitDay;
   uint32_t phaseStart_ = 0;
   uint32_t triggerAt_ = 0;
