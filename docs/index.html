@@ -262,6 +262,7 @@
       </div>
       <h3>Entrée</h3>
       <div class="form">
+        <label for="s_ext_on" data-row="ext_on">S'allume au coucher +<small>0 : dès le déclenchement. Plus tôt si la soirée part tard</small></label><span data-row="ext_on"><input id="s_ext_on" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_ext_hold">Durée<small>Comptée depuis l'allumage</small></label><span><input id="s_ext_hold" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_ext_sun" data-row="ext_sun">Au moins jusqu'au coucher +<small>Retient la porte : la dernière poule doit être rentrée</small></label><span data-row="ext_sun"><input id="s_ext_sun" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_ext_max">Intensité</label><span><input id="s_ext_max" inputmode="numeric"><span class="unit">%</span></span>
@@ -358,10 +359,10 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-11-04 m";
+const PAGE_VERSION = "2026-11-04 n";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
 const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"],
-                  ["ext_sun","es"],["int_sun","is"]];   // es, is : carte version j et suivantes
+                  ["ext_on","eo"],["ext_sun","es"],["int_sun","is"]];   // eo : carte k ; es, is : carte j
 // Réglages que la carte connectée connaît (une carte plus ancienne n'envoie pas es ni is).
 const known = () => SETTINGS.filter(([, key]) => info && info.cfg[key] !== undefined);
 const $ = id => document.getElementById(id);
@@ -454,6 +455,7 @@ function updateHero() {
     if (ss) {
       const set = new Date(ss * 1000), open = new Date((ss - 20 * 60) * 1000);
       t += ` Coucher du soleil à ${hhmm(set)} : pas d'allumage avant ${hhmm(open)}.`;
+      if (cfg && cfg.eo) t += ` Entrée allumée vers ${hhmm(new Date((ss + cfg.eo * 60) * 1000))}.`;
     }
   }
   else if (s.p === 2) {
@@ -461,9 +463,12 @@ function updateHero() {
     if (cur && !cur[1] && cfg) {
       const el = (uptimeNow() - cur[0]) / 60;
       // Allongements de ce soir, calés sur le coucher du soleil (carte version i).
-      const xe = info.sun ? info.sun[1] : 0, xi = info.sun ? info.sun[2] : 0;
-      const ext = Math.max(0, Math.ceil(cfg.eh + xe - el)), int = Math.max(0, Math.ceil(cfg.ih + xi + cfg.if - el));
-      t = `Entrée : ${ext ? `encore ${ext} min` : "éteinte"}. Intérieur : ${int ? `encore ${int} min` : "éteint"}.`;
+      // Retard d'allumage de l'entrée ce soir (carte version k).
+      const xe = info.sun ? info.sun[1] : 0, xi = info.sun ? info.sun[2] : 0, de = info.sun && info.sun[3] || 0;
+      const ext = Math.max(0, Math.ceil(de + cfg.eh + xe - el)), int = Math.max(0, Math.ceil(cfg.ih + xi + cfg.if - el));
+      const wait = Math.ceil(de - el);
+      const te = wait > 0 ? `allumage dans ${wait} min` : ext ? `encore ${ext} min` : "éteinte";
+      t = `Entrée : ${te}. Intérieur : ${int ? `encore ${int} min` : "éteint"}.`;
     } else t = "Soirée en cours.";
   } else if (s.p === 3) t = "Soirée terminée. La carte se réarme au prochain jour.";
   if (s.g === 1) t += " Accu bas : intérieur bridé ce soir.";
@@ -1237,7 +1242,7 @@ async function send(cmd, quiet) {
 // affiche clairement ce qu'elle a accepté ou refusé (avec sa réponse).
 const LABELS = { dusk: "seuil du soir", day: "seuil du jour", ext_hold: "durée de l'entrée", ext_max: "intensité de l'entrée",
                  int_hold: "pleine lumière", int_fade: "extinction progressive", int_max: "intensité intérieure",
-                 ext_sun: "entrée jusqu'au coucher +", int_sun: "intérieur plein jusqu'au coucher +" };
+                 ext_on: "allumage de l'entrée au coucher +", ext_sun: "entrée jusqu'au coucher +", int_sun: "intérieur plein jusqu'au coucher +" };
 let boardMsgs = null;   // réponses de la carte collectées pendant un enregistrement
 function saveResult(text, kind) { const el = $("saveInfo"); el.textContent = text; el.className = "result " + (kind || ""); }
 async function save() {

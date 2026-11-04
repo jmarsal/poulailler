@@ -38,9 +38,9 @@
 
 namespace {
 #ifdef SANS_SOMMEIL
-  constexpr const char* FIRMWARE = "2026-11-04 j essai";   // pio run -e eveil
+  constexpr const char* FIRMWARE = "2026-11-04 k essai";   // pio run -e eveil
 #else
-  constexpr const char* FIRMWARE = "2026-11-04 j";
+  constexpr const char* FIRMWARE = "2026-11-04 k";
 #endif
 
   // ---- État gardé pendant le sommeil profond (mémoire RTC) ----------------
@@ -171,6 +171,9 @@ namespace {
                     localHhmm(sunsetToday()).c_str(),
                     (unsigned long)(controller.extensionMs(dusk::Output::Exterior) / 60000),
                     (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000));
+    if (evening() && controller.delayMs(dusk::Output::Exterior))
+      Serial.printf("     entrée allumée dans %lu min\n",
+                    (unsigned long)(controller.delayMs(dusk::Output::Exterior) / 60000));
     if (evening()) { History::eveningStart(controller.smoothed()); decideBatteryGuard(); }
     if (controller.phase() == dusk::Phase::Night) History::eveningEnd();
   }
@@ -205,11 +208,13 @@ namespace {
     char lg[48];
     snprintf(lg, sizeof(lg), "\"lg\":[%lu,%lu,%d],", (unsigned long)DataLog::firstSeq(),
              (unsigned long)DataLog::nextSeq(), DataLog::ok() ? 1 : 0);
-    // Soleil : coucher du jour (UTC, 0 si heure inconnue), allongements de ce soir (min).
-    char sn[64];
-    snprintf(sn, sizeof(sn), "\"sun\":[%lu,%lu,%lu],", (unsigned long)sunsetToday(),
+    // Soleil : coucher du jour (UTC, 0 si heure inconnue), allongements de ce soir
+    // (entrée, intérieur), puis retard d'allumage de l'entrée ce soir (min).
+    char sn[72];
+    snprintf(sn, sizeof(sn), "\"sun\":[%lu,%lu,%lu,%lu],", (unsigned long)sunsetToday(),
              (unsigned long)(controller.extensionMs(dusk::Output::Exterior) / 60000),
-             (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000));
+             (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000),
+             (unsigned long)(controller.delayMs(dusk::Output::Exterior) / 60000));
     return String(head) + lg + sn + "\"cfg\":" + Settings::toJson(cfg, solar) + ",\"j\":" + History::journalJson() + "}";
   }
 

@@ -42,6 +42,10 @@
 // - Allongement : l'entrée reste allumée au moins jusqu'à une heure donnée
 //   après le coucher, et l'intérieur en pleine lumière de même. Un soir gris
 //   qui déclenche tôt ne laisse plus la porte se fermer trop tôt.
+// - Entrée retardée : l'entrée ne s'allume qu'à partir de coucher + N (tant
+//   qu'il fait clair, la porte ne fermerait pas : inutile de vider l'accu).
+//   Sa durée est comptée depuis son allumage. Si la soirée part après
+//   coucher + N, l'entrée s'allume aussitôt.
 // Sans heure connue, ces règles sont ignorées : la lumière décide seule.
 
 #pragma once
@@ -82,6 +86,7 @@ struct SolarConfig {
   int16_t exteriorUntilMin;     // entrée allumée au moins jusqu'à coucher + N
   int16_t interiorFullUntilMin; // intérieur en pleine lumière au moins jusqu'à coucher + N
   int16_t maxExtensionMin;      // allongement maximal d'une sortie par ces règles
+  int16_t exteriorStartMin;     // entrée allumée seulement à partir de coucher + N (0 : dès le déclenchement)
 };
 
 struct Config {
@@ -112,6 +117,8 @@ class Controller {
   uint32_t extensionMs(Output out) const {
     return out == Output::Interior ? intExtMs_ : extExtMs_;
   }
+  // Retard d'allumage d'une sortie ce soir, compté depuis le déclenchement (ms).
+  uint32_t delayMs(Output out) const { return out == Output::Interior ? 0 : extDelayMs_; }
 
   // À appeler souvent (dans loop) : termine la soirée entre deux mesures.
   // Renvoie true si la phase a changé.
@@ -142,9 +149,10 @@ class Controller {
   Profile effective(Output out) const;   // profil de ce soir, allongement compris
 
   Config cfg_;
-  SolarConfig solar_ = {false, 0, 0, 0, 0, 0, 0};
+  SolarConfig solar_ = {false, 0, 0, 0, 0, 0, 0, 0};
   uint32_t extExtMs_ = 0;   // allongement de l'entrée ce soir
   uint32_t intExtMs_ = 0;   // allongement de la pleine lumière intérieure ce soir
+  uint32_t extDelayMs_ = 0; // retard d'allumage de l'entrée ce soir
   Phase phase_ = Phase::WaitDay;
   uint32_t phaseStart_ = 0;
   uint32_t triggerAt_ = 0;

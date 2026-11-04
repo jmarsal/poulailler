@@ -116,9 +116,11 @@ constexpr dusk::SolarConfig SOLAR_CONFIG = {
   /* windowBeforeMin      */ 20,   // la lumière ne lance la soirée qu'à partir de coucher - 20
   /* fallbackAfterMin     */ 15,   // soirée quand même à coucher + 15 si le capteur n'a rien vu…
   /* windowAfterMin       */ 60,   // … et jusqu'à coucher + 60 seulement
-  /* exteriorUntilMin     */ 30,   // entrée allumée au moins jusqu'à coucher + 30
+  /* exteriorUntilMin     */ 60,   // entrée allumée au moins jusqu'à coucher + 60 (porte encore ouverte)
   /* interiorFullUntilMin */ 30,   // intérieur en pleine lumière au moins jusqu'à coucher + 30
   /* maxExtensionMin      */ 60,   // jamais plus d'une heure d'allongement (renards)
+  /* exteriorStartMin     */ 10,   // entrée allumée seulement à partir de coucher + 10 (la Kerbl
+                                   // fermait vers coucher + 25 sans lumière : 15 min de marge)
 };
 // Intervalle entre deux mesures de lumière.
 constexpr uint32_t     LIGHT_PERIOD_MS = FAST_TEST ? 500 : 30000;

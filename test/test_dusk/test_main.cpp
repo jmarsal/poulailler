@@ -356,6 +356,89 @@ void test_soleil_desactive_par_defaut() {
   TEST_ASSERT_EQUAL_UINT32(0, c.extensionMs(Output::Exterior));
 }
 
+// Entrée retardée : allumée seulement à partir de coucher + 10, tenue jusqu'à
+// coucher + 60 (réglages de la version k).
+namespace {
+constexpr dusk::SolarConfig SOLAR_K = {true, 20, 15, 60, 60, 30, 60, 10};
+Controller armedK() {
+  Controller c(REAL);
+  c.setSolar(SOLAR_K);
+  sim(c, -300, -280, BRIGHT);
+  TEST_ASSERT_EQUAL(Phase::Day, c.phase());
+  return c;
+}
+}  // namespace
+
+void test_entree_retardee_s_allume_a_coucher_plus_10() {
+  Controller c = armedK();
+  TEST_ASSERT_EQUAL_UINT32(at(-20), sim(c, -60, 0, DARK)); // soirée à coucher - 20
+  TEST_ASSERT_EQUAL_UINT32(30 * MIN, c.delayMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, c.level(Output::Exterior, at(9)));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, at(11)));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Interior, at(-19)));  // l'intérieur, lui, tout de suite
+}
+
+void test_entree_retardee_tient_jusqu_a_coucher_plus_60() {
+  Controller c = armedK();
+  sim(c, -60, 0, DARK);                                    // soirée à coucher - 20
+  // allumée à + 10, 35 min la mèneraient à + 45 : allongée de 15 min.
+  TEST_ASSERT_EQUAL_UINT32(15 * MIN, c.extensionMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, at(59)));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, c.level(Output::Exterior, at(61)));
+  c.tick(at(59));
+  TEST_ASSERT_EQUAL(Phase::Evening, c.phase());
+  c.tick(at(61));
+  TEST_ASSERT_EQUAL(Phase::Night, c.phase());
+}
+
+void test_entree_retardee_soiree_tardive_allume_aussitot() {
+  Controller c = armedK();
+  sim(c, -280, 5, BRIGHT);
+  const uint32_t on = sim(c, 5, 60, DARK);                 // noir à + 5, soirée à + 15
+  TEST_ASSERT_EQUAL_UINT32(at(15), on);
+  TEST_ASSERT_EQUAL_UINT32(0, c.delayMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, at(15) + 10000));
+  TEST_ASSERT_EQUAL_UINT32(10 * MIN, c.extensionMs(Output::Exterior));   // 35 + 10 : jusqu'à + 60
+}
+
+void test_entree_retardee_heure_inconnue_allume_aussitot() {
+  Controller c = armedK();
+  const uint32_t on = sim(c, -60, 0, DARK, false);         // sans heure : pas de retard
+  TEST_ASSERT_EQUAL_UINT32(0, c.delayMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, on + 10000));
+}
+
+void test_entree_retardee_soiree_manuelle_allume_aussitot() {
+  Controller c = armedK();
+  c.startEvening(at(-30));
+  TEST_ASSERT_EQUAL_UINT32(0, c.delayMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, at(-30) + 10000));
+}
+
+void test_entree_retardee_zero_allume_au_declenchement() {
+  Controller c(REAL);
+  dusk::SolarConfig s = SOLAR_K;
+  s.exteriorStartMin = 0;
+  c.setSolar(s);
+  sim(c, -300, -280, BRIGHT);
+  const uint32_t on = sim(c, -60, 0, DARK);
+  TEST_ASSERT_EQUAL_UINT32(0, c.delayMs(Output::Exterior));
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, c.level(Output::Exterior, on + 10000));
+}
+
+void test_entree_retardee_la_soiree_attend_l_extinction_de_l_entree() {
+  Controller c(REAL);
+  dusk::SolarConfig s = SOLAR_K;
+  s.interiorFullUntilMin = 0;                              // intérieur éteint vers coucher + 40
+  c.setSolar(s);
+  sim(c, -300, -280, BRIGHT);
+  sim(c, -60, 0, DARK);                                    // soirée à coucher - 20
+  c.tick(at(50));
+  TEST_ASSERT_EQUAL(Phase::Evening, c.phase());            // l'entrée tient jusqu'à + 60
+  c.tick(at(61));
+  TEST_ASSERT_EQUAL(Phase::Night, c.phase());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_demarrage_de_nuit_n_allume_pas);
@@ -388,5 +471,12 @@ int main() {
   RUN_TEST(test_soleil_la_soiree_dure_jusqu_a_la_fin_de_l_allongement);
   RUN_TEST(test_soleil_soiree_manuelle_sans_allongement);
   RUN_TEST(test_soleil_desactive_par_defaut);
+  RUN_TEST(test_entree_retardee_s_allume_a_coucher_plus_10);
+  RUN_TEST(test_entree_retardee_tient_jusqu_a_coucher_plus_60);
+  RUN_TEST(test_entree_retardee_soiree_tardive_allume_aussitot);
+  RUN_TEST(test_entree_retardee_heure_inconnue_allume_aussitot);
+  RUN_TEST(test_entree_retardee_soiree_manuelle_allume_aussitot);
+  RUN_TEST(test_entree_retardee_zero_allume_au_declenchement);
+  RUN_TEST(test_entree_retardee_la_soiree_attend_l_extinction_de_l_entree);
   return UNITY_END();
 }

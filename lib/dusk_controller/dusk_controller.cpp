@@ -37,23 +37,28 @@ Profile Controller::effective(Output out) const {
 uint32_t Controller::eveningMs() const {
   const Profile pin = effective(Output::Interior), pout = effective(Output::Exterior);
   const uint32_t in = pin.holdMs + pin.fadeOutMs;
-  const uint32_t out = pout.holdMs + pout.fadeOutMs;
+  const uint32_t out = extDelayMs_ + pout.holdMs + pout.fadeOutMs;
   return in > out ? in : out;
 }
 
 void Controller::trigger(uint32_t nowMs, const SunClock& sun) {
   triggerAt_ = nowMs;
-  extExtMs_ = intExtMs_ = 0;
+  extExtMs_ = intExtMs_ = extDelayMs_ = 0;
   if (useSun(sun)) {
+    // Entrée retardée jusqu'à coucher + N (jamais si la soirée part après).
+    if (solar_.exteriorStartMin > 0) {
+      const int64_t wait = ((int64_t)solar_.exteriorStartMin * 60 - sun.secFromSunset) * 1000;
+      if (wait > 0) extDelayMs_ = (uint32_t)wait;
+    }
     // Combien de temps chaque sortie doit tenir pour atteindre coucher + N.
     const int64_t maxMs = (int64_t)solar_.maxExtensionMin * 60000;
-    auto extension = [&](int16_t untilMin, uint32_t holdMs) -> uint32_t {
-      const int64_t wanted = ((int64_t)untilMin * 60 - sun.secFromSunset) * 1000 - holdMs;
+    auto extension = [&](int16_t untilMin, uint32_t delayMs, uint32_t holdMs) -> uint32_t {
+      const int64_t wanted = ((int64_t)untilMin * 60 - sun.secFromSunset) * 1000 - delayMs - holdMs;
       if (wanted <= 0) return 0;
       return (uint32_t)(wanted < maxMs ? wanted : maxMs);
     };
-    extExtMs_ = extension(solar_.exteriorUntilMin, cfg_.exterior.holdMs);
-    intExtMs_ = extension(solar_.interiorFullUntilMin, cfg_.interior.holdMs);
+    extExtMs_ = extension(solar_.exteriorUntilMin, extDelayMs_, cfg_.exterior.holdMs);
+    intExtMs_ = extension(solar_.interiorFullUntilMin, 0, cfg_.interior.holdMs);
   }
   enter(Phase::Evening, nowMs);
 }
@@ -147,7 +152,9 @@ void Controller::startEvening(uint32_t nowMs) {
 
 float Controller::level(Output out, uint32_t nowMs) const {
   if (phase_ != Phase::Evening) return 0.0f;
-  return profileLevel(effective(out), nowMs - triggerAt_);
+  const uint32_t elapsed = nowMs - triggerAt_, wait = delayMs(out);
+  if (elapsed < wait) return 0.0f;   // entrée pas encore allumée
+  return profileLevel(effective(out), elapsed - wait);
 }
 
 }  // namespace dusk

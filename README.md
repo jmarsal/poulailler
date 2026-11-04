@@ -63,6 +63,11 @@ connaît l'heure réelle, trois règles s'ajoutent (`SOLAR_CONFIG`) :
   Depuis la version j, ces deux « coucher + N » se règlent dans l'application
   (0 à 90 min, commandes `set ext_sun` et `set int_sun`), gardés en mémoire
   flash. Un changement vaut pour la soirée suivante.
+- **Entrée retardée** (version k) : l'entrée ne s'allume qu'à coucher + 10 min
+  (`set ext_on`, 0 à 60, 0 = dès le déclenchement) et tient au moins jusqu'à
+  coucher + 60. Tant qu'il fait clair, la porte Kerbl ne fermerait pas : inutile
+  de vider l'accu. Si la soirée part après coucher + 10, l'entrée s'allume
+  aussitôt. Sans heure connue ou en soirée manuelle, pas de retard.
 
 Sans heure connue (carte redémarrée sans connexion du téléphone), ces règles
 sont ignorées et la lumière décide seule, comme avant. Une soirée lancée à la

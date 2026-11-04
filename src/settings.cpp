@@ -44,6 +44,7 @@ dusk::SolarConfig loadSolar() {
   p.begin(NS, true);
   s.exteriorUntilMin     = p.getShort("esun", s.exteriorUntilMin);
   s.interiorFullUntilMin = p.getShort("isun", s.interiorFullUntilMin);
+  s.exteriorStartMin     = p.getShort("eon", s.exteriorStartMin);
   p.end();
   return s;
 }
@@ -100,6 +101,12 @@ String apply(const String& cmdIn, dusk::Config& cfg, dusk::SolarConfig& solar) {
   } else if (name == "ext_sun") {
     if (!parseInt(val, 0, 90, v)) msg = "entrée après le coucher : de 0 à 90 min";
     else { solar.exteriorUntilMin = v; p.putShort("esun", v); msg = "entrée jusqu'au coucher + " + String(v) + " min"; }
+  } else if (name == "ext_on") {
+    if (!parseInt(val, 0, 60, v)) msg = "allumage de l'entrée : de 0 à 60 min";
+    else {
+      solar.exteriorStartMin = v; p.putShort("eon", v);
+      msg = v ? "entrée allumée à partir du coucher + " + String(v) + " min" : "entrée allumée dès le déclenchement";
+    }
   } else if (name == "int_sun") {
     if (!parseInt(val, 0, 90, v)) msg = "intérieur après le coucher : de 0 à 90 min";
     else { solar.interiorFullUntilMin = v; p.putShort("isun", v); msg = "intérieur plein jusqu'au coucher + " + String(v) + " min"; }
@@ -113,11 +120,12 @@ String apply(const String& cmdIn, dusk::Config& cfg, dusk::SolarConfig& solar) {
 String toJson(const dusk::Config& cfg, const dusk::SolarConfig& solar) {
   char buf[240];
   snprintf(buf, sizeof(buf),
-           "{\"dusk\":%u,\"day\":%u,\"ih\":%u,\"if\":%u,\"im\":%u,\"eh\":%u,\"em\":%u,\"man\":%u,\"es\":%d,\"is\":%d}",
+           "{\"dusk\":%u,\"day\":%u,\"ih\":%u,\"if\":%u,\"im\":%u,\"eh\":%u,\"em\":%u,\"man\":%u,\"es\":%d,\"is\":%d,\"eo\":%d}",
            cfg.duskThreshold, cfg.dayThreshold,
            toMin(cfg.interior.holdMs), toMin(cfg.interior.fadeOutMs), toPct(cfg.interior.maxLevel),
            toMin(cfg.exterior.holdMs), toPct(cfg.exterior.maxLevel),
-           (unsigned)(MANUAL_MAX_MS / MIN), (int)solar.exteriorUntilMin, (int)solar.interiorFullUntilMin);
+           (unsigned)(MANUAL_MAX_MS / MIN), (int)solar.exteriorUntilMin, (int)solar.interiorFullUntilMin,
+           (int)solar.exteriorStartMin);
   return String(buf);
 }
 
