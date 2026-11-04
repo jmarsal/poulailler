@@ -13,9 +13,11 @@
 namespace Settings {
   // Réglages de départ : config.h, puis ce qui a été enregistré.
   dusk::Config load();
-  // Traite « set <nom> <valeur> » ou « reset ». Met à jour `cfg` si accepté.
-  // Renvoie un message court pour le téléphone et le moniteur.
-  String apply(const String& cmd, dusk::Config& cfg);
+  // Règles du soleil : config.h (SOLAR_CONFIG), puis ce qui a été enregistré.
+  dusk::SolarConfig loadSolar();
+  // Traite « set <nom> <valeur> » ou « reset ». Met à jour `cfg` ou `solar`
+  // si accepté. Renvoie un message court pour le téléphone et le moniteur.
+  String apply(const String& cmd, dusk::Config& cfg, dusk::SolarConfig& solar);
   // Réglages courants au format JSON (seuils, minutes, pourcentages).
-  String toJson(const dusk::Config& cfg);
+  String toJson(const dusk::Config& cfg, const dusk::SolarConfig& solar);
 }

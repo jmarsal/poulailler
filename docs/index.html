@@ -262,12 +262,14 @@
       </div>
       <h3>Entrée</h3>
       <div class="form">
-        <label for="s_ext_hold">Durée<small>15 min avant la fermeture + 20 min après</small></label><span><input id="s_ext_hold" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_ext_hold">Durée<small>Comptée depuis l'allumage</small></label><span><input id="s_ext_hold" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_ext_sun" data-row="ext_sun">Au moins jusqu'au coucher +<small>Retient la porte : la dernière poule doit être rentrée</small></label><span data-row="ext_sun"><input id="s_ext_sun" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_ext_max">Intensité</label><span><input id="s_ext_max" inputmode="numeric"><span class="unit">%</span></span>
       </div>
       <h3>Intérieur</h3>
       <div class="form">
         <label for="s_int_hold">Pleine lumière</label><span><input id="s_int_hold" inputmode="numeric"><span class="unit">min</span></span>
+        <label for="s_int_sun" data-row="int_sun">Pleine lumière au moins jusqu'au coucher +</label><span data-row="int_sun"><input id="s_int_sun" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_int_fade">Extinction progressive</label><span><input id="s_int_fade" inputmode="numeric"><span class="unit">min</span></span>
         <label for="s_int_max">Intensité</label><span><input id="s_int_max" inputmode="numeric"><span class="unit">%</span></span>
       </div>
@@ -356,9 +358,12 @@
 <script>
 const BASE = n => `6b1f000${n}-3c2d-4e5a-9b7c-5f0e2a9c4d10`;
 const SERVICE = BASE(1), CMD = BASE(2), STATE = BASE(3), INFO = BASE(4), CURVE = BASE(5), OTA = BASE(6), LOGC = BASE(7);
-const PAGE_VERSION = "2026-11-03 l";
+const PAGE_VERSION = "2026-11-04 m";
 const PHASES = ["Attente du jour", "Jour", "Soirée", "Nuit"];
-const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"]];
+const SETTINGS = [["dusk","dusk"],["day","day"],["ext_hold","eh"],["ext_max","em"],["int_hold","ih"],["int_fade","if"],["int_max","im"],
+                  ["ext_sun","es"],["int_sun","is"]];   // es, is : carte version j et suivantes
+// Réglages que la carte connectée connaît (une carte plus ancienne n'envoie pas es ni is).
+const known = () => SETTINGS.filter(([, key]) => info && info.cfg[key] !== undefined);
 const $ = id => document.getElementById(id);
 const dec = new TextDecoder(), enc = new TextEncoder();
 let ch = {}, state = null, stateAt = 0, info = null, curve = null, lastMsgSeen = -1;
@@ -488,7 +493,11 @@ function showState(s, at) {
 
 function showInfo(j) {
   info = j;
-  for (const [name, key] of SETTINGS) $("s_" + name).value = j.cfg[key];
+  for (const [name, key] of SETTINGS) {
+    const has = j.cfg[key] !== undefined;
+    $("s_" + name).value = has ? j.cfg[key] : "";
+    document.querySelectorAll(`[data-row="${name}"]`).forEach(el => el.style.display = has ? "" : "none");
+  }
   markDirty();
   const h = [
     ["Mode", j.mode === "test" ? "test (temps accéléré)" : "réel"],
@@ -1227,13 +1236,14 @@ async function send(cmd, quiet) {
 // Enregistrement des réglages : on envoie chaque changement, on relit la carte, et on
 // affiche clairement ce qu'elle a accepté ou refusé (avec sa réponse).
 const LABELS = { dusk: "seuil du soir", day: "seuil du jour", ext_hold: "durée de l'entrée", ext_max: "intensité de l'entrée",
-                 int_hold: "pleine lumière", int_fade: "extinction progressive", int_max: "intensité intérieure" };
+                 int_hold: "pleine lumière", int_fade: "extinction progressive", int_max: "intensité intérieure",
+                 ext_sun: "entrée jusqu'au coucher +", int_sun: "intérieur plein jusqu'au coucher +" };
 let boardMsgs = null;   // réponses de la carte collectées pendant un enregistrement
 function saveResult(text, kind) { const el = $("saveInfo"); el.textContent = text; el.className = "result " + (kind || ""); }
 async function save() {
   if (!info || !live) { saveResult("Pas connecté à la carte : rien n'a été enregistré.", "bad"); return; }
   const changes = [];
-  for (const [name, key] of SETTINGS) {
+  for (const [name, key] of known()) {
     const v = $("s_" + name).value.trim();
     if (v !== String(info.cfg[key])) changes.push([name, key, v]);
   }
@@ -1270,7 +1280,7 @@ async function save() {
 // Champs modifiés et pas encore enregistrés : surlignés.
 function markDirty() {
   if (!info) return;
-  for (const [name, key] of SETTINGS) $("s_" + name).classList.toggle("dirty", $("s_" + name).value.trim() !== String(info.cfg[key]));
+  for (const [name, key] of known()) $("s_" + name).classList.toggle("dirty", $("s_" + name).value.trim() !== String(info.cfg[key]));
 }
 
 // Mise à jour du programme : « ota begin », morceaux de 180 octets, « ota end ».

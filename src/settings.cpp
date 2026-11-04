@@ -37,7 +37,18 @@ dusk::Config load() {
   return cfg;
 }
 
-String apply(const String& cmdIn, dusk::Config& cfg) {
+dusk::SolarConfig loadSolar() {
+  dusk::SolarConfig s = SOLAR_CONFIG;
+  if (FAST_TEST) return s;
+  Preferences p;
+  p.begin(NS, true);
+  s.exteriorUntilMin     = p.getShort("esun", s.exteriorUntilMin);
+  s.interiorFullUntilMin = p.getShort("isun", s.interiorFullUntilMin);
+  p.end();
+  return s;
+}
+
+String apply(const String& cmdIn, dusk::Config& cfg, dusk::SolarConfig& solar) {
   if (FAST_TEST) return "réglages indisponibles en mode test";
 
   String cmd = cmdIn;
@@ -47,6 +58,7 @@ String apply(const String& cmdIn, dusk::Config& cfg) {
     p.clear();
     p.end();
     cfg = DUSK_CONFIG;
+    solar = SOLAR_CONFIG;
     return "réglages d'origine rétablis";
   }
 
@@ -85,6 +97,12 @@ String apply(const String& cmdIn, dusk::Config& cfg) {
   } else if (name == "ext_max") {
     if (!parseInt(val, 10, 100, v)) msg = "entrée intensité : de 10 à 100 %";
     else { cfg.exterior.maxLevel = v / 100.0f; p.putFloat("emax", cfg.exterior.maxLevel); msg = "entrée intensité : " + String(v) + " %"; }
+  } else if (name == "ext_sun") {
+    if (!parseInt(val, 0, 90, v)) msg = "entrée après le coucher : de 0 à 90 min";
+    else { solar.exteriorUntilMin = v; p.putShort("esun", v); msg = "entrée jusqu'au coucher + " + String(v) + " min"; }
+  } else if (name == "int_sun") {
+    if (!parseInt(val, 0, 90, v)) msg = "intérieur après le coucher : de 0 à 90 min";
+    else { solar.interiorFullUntilMin = v; p.putShort("isun", v); msg = "intérieur plein jusqu'au coucher + " + String(v) + " min"; }
   } else {
     msg = "réglage inconnu : " + name;
   }
@@ -92,14 +110,14 @@ String apply(const String& cmdIn, dusk::Config& cfg) {
   return msg;
 }
 
-String toJson(const dusk::Config& cfg) {
-  char buf[200];
+String toJson(const dusk::Config& cfg, const dusk::SolarConfig& solar) {
+  char buf[240];
   snprintf(buf, sizeof(buf),
-           "{\"dusk\":%u,\"day\":%u,\"ih\":%u,\"if\":%u,\"im\":%u,\"eh\":%u,\"em\":%u,\"man\":%u}",
+           "{\"dusk\":%u,\"day\":%u,\"ih\":%u,\"if\":%u,\"im\":%u,\"eh\":%u,\"em\":%u,\"man\":%u,\"es\":%d,\"is\":%d}",
            cfg.duskThreshold, cfg.dayThreshold,
            toMin(cfg.interior.holdMs), toMin(cfg.interior.fadeOutMs), toPct(cfg.interior.maxLevel),
            toMin(cfg.exterior.holdMs), toPct(cfg.exterior.maxLevel),
-           (unsigned)(MANUAL_MAX_MS / MIN));
+           (unsigned)(MANUAL_MAX_MS / MIN), (int)solar.exteriorUntilMin, (int)solar.interiorFullUntilMin);
   return String(buf);
 }
 

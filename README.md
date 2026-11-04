@@ -60,6 +60,9 @@ connaît l'heure réelle, trois règles s'ajoutent (`SOLAR_CONFIG`) :
 - **Allongement** : l'entrée reste allumée, et l'intérieur en pleine lumière,
   au moins jusqu'à coucher + 30 min. Un soir gris qui déclenche tôt ne laisse
   plus la porte se fermer trop tôt. Jamais plus d'une heure d'allongement.
+  Depuis la version j, ces deux « coucher + N » se règlent dans l'application
+  (0 à 90 min, commandes `set ext_sun` et `set int_sun`), gardés en mémoire
+  flash. Un changement vaut pour la soirée suivante.
 
 Sans heure connue (carte redémarrée sans connexion du téléphone), ces règles
 sont ignorées et la lumière décide seule, comme avant. Une soirée lancée à la

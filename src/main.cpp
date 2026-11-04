@@ -38,9 +38,9 @@
 
 namespace {
 #ifdef SANS_SOMMEIL
-  constexpr const char* FIRMWARE = "2026-11-03 i essai";   // pio run -e eveil
+  constexpr const char* FIRMWARE = "2026-11-04 j essai";   // pio run -e eveil
 #else
-  constexpr const char* FIRMWARE = "2026-11-03 i";
+  constexpr const char* FIRMWARE = "2026-11-04 j";
 #endif
 
   // ---- État gardé pendant le sommeil profond (mémoire RTC) ----------------
@@ -60,6 +60,7 @@ namespace {
   RTC_DATA_ATTR int      coldReason = 0;      // cause du dernier vrai démarrage (pas un réveil)
 
   dusk::Config cfg = DUSK_CONFIG;
+  dusk::SolarConfig solar = SOLAR_CONFIG;
 
   // ---- État de cet éveil seulement -----------------------------------------
   bool     manualOn[2]    = {false, false};   // 0 = intérieur, 1 = extérieur
@@ -209,7 +210,7 @@ namespace {
     snprintf(sn, sizeof(sn), "\"sun\":[%lu,%lu,%lu],", (unsigned long)sunsetToday(),
              (unsigned long)(controller.extensionMs(dusk::Output::Exterior) / 60000),
              (unsigned long)(controller.extensionMs(dusk::Output::Interior) / 60000));
-    return String(head) + lg + sn + "\"cfg\":" + Settings::toJson(cfg) + ",\"j\":" + History::journalJson() + "}";
+    return String(head) + lg + sn + "\"cfg\":" + Settings::toJson(cfg, solar) + ",\"j\":" + History::journalJson() + "}";
   }
 
   void refreshCurve() {
@@ -276,8 +277,9 @@ namespace {
       BleControl::otaAbort();
       say("mise à jour annulée");
     } else if (cmd.startsWith("set ") || cmd == "reset") {
-      say(Settings::apply(cmd, cfg));
+      say(Settings::apply(cmd, cfg, solar));
       controller.setConfig(cfg);
+      controller.setSolar(solar);
     } else {
       say("commande inconnue : " + cmd);
     }
@@ -350,7 +352,8 @@ void setup() {
 
   cfg = Settings::load();
   controller.setConfig(cfg);
-  controller.setSolar(SOLAR_CONFIG);
+  solar = Settings::loadSolar();
+  controller.setSolar(solar);
 
   if (cold) {
     Serial.println();
